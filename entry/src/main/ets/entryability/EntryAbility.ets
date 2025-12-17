@@ -1,6 +1,9 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { gamePlayer } from '@kit.GameServiceKit';
+import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 const DOMAIN = 0x0000;
 
@@ -28,6 +31,16 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+
+      // Game Service Kit 初始化（单点接入要求）
+      try {
+        gamePlayer.init(this.context, () => {
+          hilog.info(DOMAIN, 'testTag', 'Succeeded in initing GameServiceKit.');
+        });
+      } catch (error) {
+        let errInit = error as BusinessError;
+        hilog.error(DOMAIN, 'testTag', `Failed to init GameServiceKit. Code: ${errInit.code}, message: ${errInit.message}`);
+      }
     });
   }
 

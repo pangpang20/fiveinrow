@@ -5,6 +5,10 @@
 
 import { PieceType, GameStatus, GameConfig, DEFAULT_CONFIG, CONFIG_30X30, BOARD_SIZE_OPTIONS } from '../model/GameTypes';
 import { GameState } from '../model/GameState';
+import { gamePlayer } from '@kit.GameServiceKit';
+import { common } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 @Entry
 @Component
@@ -29,6 +33,15 @@ struct Index {
   @State boardSize: number = 15;
   @State cellSize: number = 22;
   @State pieceSize: number = 20;
+
+  // 登录与模式状态
+  private readonly LOGIN_MODE_NONE: number = 0;
+  private readonly LOGIN_MODE_HUAWEI: number = 1;
+  private readonly LOGIN_MODE_GUEST: number = 2;
+  @State loginMode: number = 0;
+  @State guestPlayCount: number = 0;
+  private readonly guestPlayLimit: number = 3;
+  @State playerAccountName: string = '';
   
   // 缩放相关状态（仅30×30棋盘使用）
   @State scaleValue: number = 1; // 当前缩放比例
@@ -106,6 +119,12 @@ struct Index {
    * 处理重新开始事件
    */
   private handleRestart(): void {
+    if (this.loginMode === this.LOGIN_MODE_GUEST) {
+      if (this.guestPlayCount >= this.guestPlayLimit) {
+        return;
+      }
+      this.guestPlayCount = this.guestPlayCount + 1;
+    }
     this.gameState.reset();
     this.syncState();
   }
@@ -175,6 +194,51 @@ struct Index {
     this.syncState();
   }
 
+  private handleHuaweiLogin(): void {
+    // 使用 Game Service Kit 进行华为账号联合登录
+    const uiContext = this.getUIContext();
+    if (!uiContext) {
+      return;
+    }
+    const abilityContext = uiContext.getHostContext() as common.UIAbilityContext;
+
+    const loginRequest: gamePlayer.UnionLoginParam = {
+      showLoginDialog: false, // 优先使用上次登录选择
+      thirdAccountInfos: [] // 单机游戏传空数组
+    };
+
+    try {
+      gamePlayer.unionLogin(abilityContext, loginRequest).then((result: gamePlayer.UnionLoginResult) => {
+        hilog.info(0x0000, 'GameLogin', `Succeeded in logining: ${result?.accountName}`);
+
+        // 登录成功后进行合规校验（实名 + 防沉迷）
+        const verifyRequest: gamePlayer.ThirdUserInfo = {
+          thirdOpenId: '' // 单机游戏传空
+        };
+        gamePlayer.verifyLocalPlayer(abilityContext, verifyRequest).then(() => {
+          hilog.info(0x0000, 'GameLogin', 'Succeeded in verifying local player.');
+          // 校验通过后，切换为华为账号模式
+          this.playerAccountName = result?.accountName ?? '';
+          this.loginMode = this.LOGIN_MODE_HUAWEI;
+        }).catch((error: BusinessError) => {
+          hilog.error(0x0000, 'GameLogin', `Failed to verify. Code: ${error.code}, message: ${error.message}`);
+        });
+      }).catch((error: BusinessError) => {
+        hilog.error(0x0000, 'GameLogin', `Failed to login. Code: ${error.code}, message: ${error.message}`);
+      });
+    } catch (error) {
+      let err = error as BusinessError;
+      hilog.error(0x0000, 'GameLogin', `Failed to login. Code: ${err.code}, message: ${err.message}`);
+    }
+  }
+
+  private handleGuestLogin(): void {
+    if (this.loginMode !== this.LOGIN_MODE_GUEST) {
+      this.guestPlayCount = 1;
+    }
+    this.loginMode = this.LOGIN_MODE_GUEST;
+  }
+
   build() {
     Column() {
       // 标题区域
@@ -183,6 +247,41 @@ struct Index {
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.primary_text'))
         .margin({ top: 20, bottom: 10 })
+
+      // 登录模式选择
+      Row() {
+        Button('华为账号快速开始')
+          .fontSize(14)
+          .fontColor($r('app.color.button_text'))
+          .backgroundColor($r('app.color.button_primary'))
+          .width(140)
+          .height(36)
+          .borderRadius(18)
+          .onClick(() => this.handleHuaweiLogin())
+
+        Button('游客模式（3局）')
+          .fontSize(14)
+          .fontColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_text') : $r('app.color.primary_text'))
+          .backgroundColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_secondary') : '#E0E0E0')
+          .width(140)
+          .height(36)
+          .borderRadius(18)
+          .margin({ left: 12 })
+          .onClick(() => this.handleGuestLogin())
+      }
+      .margin({ bottom: 10 })
+
+      if (this.loginMode === this.LOGIN_MODE_HUAWEI) {
+        Text(`当前玩家：${this.playerAccountName || '华为账号用户'}`)
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: 4 })
+
+        Text('快去找你的小伙伴一起玩吧')
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: 8 })
+      }
 
       // 棋盘尺寸选择区域
       Row() {
@@ -211,6 +310,13 @@ struct Index {
           .onClick(() => this.switchBoardSize(30))
       }
       .margin({ bottom: 10 })
+
+      if (this.loginMode === this.LOGIN_MODE_GUEST) {
+        Text(`游客模式：剩余${this.guestPlayLimit - this.guestPlayCount}局`)
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: 6 })
+      }
 
       // 状态显示区域
       Row() {
@@ -369,6 +475,8 @@ struct Index {
           .height(44)
           .borderRadius(22)
           .margin({ left: 20 })
+          .enabled(this.totalMoves > 0 && !(this.loginMode === this.LOGIN_MODE_GUEST && this.guestPlayCount >= this.guestPlayLimit))
+          .opacity(this.totalMoves > 0 && !(this.loginMode === this.LOGIN_MODE_GUEST && this.guestPlayCount >= this.guestPlayLimit) ? 1 : 0.5)
           .onClick(() => this.handleRestart())
       }
       .margin({ bottom: this.boardSize === 30 ? 10 : 20 })
