@@ -1,0 +1,72 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "board_background",
+      "value": "#DEB887"
+    },
+    {
+      "name": "board_line",
+      "value": "#8B4513"
+    },
+    {
+      "name": "black_piece",
+      "value": "#1A1A1A"
+    },
+    {
+      "name": "white_piece",
+      "value": "#F5F5F5"
+    },
+    {
+      "name": "piece_shadow",
+      "value": "#33000000"
+    },
+    {
+      "name": "last_move_marker",
+      "value": "#FF4444"
+    },
+    {
+      "name": "page_background",
+      "value": "#F0EBE3"
+    },
+    {
+      "name": "primary_text",
+      "value": "#333333"
+    },
+    {
+      "name": "secondary_text",
+      "value": "#666666"
+    },
+    {
+      "name": "button_primary",
+      "value": "#4A90D9"
+    },
+    {
+      "name": "button_secondary",
+      "value": "#6C757D"
+    },
+    {
+      "name": "button_text",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "win_color",
+      "value": "#28A745"
+    },
+    {
+      "name": "star_point",
+      "value": "#5D4037"
+    },
+    {
+      "name": "black_turn_indicator",
+      "value": "#1A1A1A"
+    },
+    {
+      "name": "white_turn_indicator",
+      "value": "#E0E0E0"
+    }
+  ]
+}

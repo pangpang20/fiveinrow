@@ -1,0 +1,84 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "五子棋游戏模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "五子棋游戏"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "五子棋"
+    },
+    {
+      "name": "game_title",
+      "value": "五子棋"
+    },
+    {
+      "name": "black_turn",
+      "value": "黑方回合"
+    },
+    {
+      "name": "white_turn",
+      "value": "白方回合"
+    },
+    {
+      "name": "black_win",
+      "value": "黑方获胜！"
+    },
+    {
+      "name": "white_win",
+      "value": "白方获胜！"
+    },
+    {
+      "name": "draw_game",
+      "value": "平局！"
+    },
+    {
+      "name": "restart_game",
+      "value": "重新开始"
+    },
+    {
+      "name": "undo_move",
+      "value": "悔棋"
+    },
+    {
+      "name": "total_moves",
+      "value": "总步数"
+    },
+    {
+      "name": "game_over",
+      "value": "游戏结束"
+    },
+    {
+      "name": "board_size",
+      "value": "棋盘尺寸"
+    },
+    {
+      "name": "size_15",
+      "value": "15×15"
+    },
+    {
+      "name": "size_30",
+      "value": "30×30"
+    },
+    {
+      "name": "version",
+      "value": "1.0.0"
+    },
+    {
+      "name": "author",
+      "value": "陈云亮"
+    },
+    {
+      "name": "author_email",
+      "value": "676814828@qq.com"
+    },
+    {
+      "name": "about_author",
+      "value": "关于作者"
+    }
+  ]
+}

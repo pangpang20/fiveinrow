@@ -1,0 +1,22 @@
+/node_modules
+/oh_modules
+/.preview
+/build
+/.cxx
+/.test
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build
+target/
+dist/
+build/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
