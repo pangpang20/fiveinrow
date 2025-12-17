@@ -38,9 +38,9 @@ struct Index {
   private readonly LOGIN_MODE_NONE: number = 0;
   private readonly LOGIN_MODE_HUAWEI: number = 1;
   private readonly LOGIN_MODE_GUEST: number = 2;
-  @State loginMode: number = 0;
-  @State guestPlayCount: number = 0;
-  private readonly guestPlayLimit: number = 3;
+  @State loginMode: number = 2; // 默认进入游客模式
+  @State guestPlayCount: number = 1; // 默认开始第1局
+  private readonly guestPlayLimit: number = 5; // 游客模式5局限制
   @State playerAccountName: string = '';
   
   // 缩放相关状态（仅30×30棋盘使用）
@@ -307,7 +307,7 @@ struct Index {
             this.handleHuaweiLogin();
           })
 
-        Button('游客模式（3局）')
+        Button('游客模式（5局）')
           .fontSize(14)
           .fontColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_text') : $r('app.color.primary_text'))
           .backgroundColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_secondary') : '#E0E0E0')
