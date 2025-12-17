@@ -136,14 +136,21 @@ struct Index {
    * 处理重新开始事件
    */
   private handleRestart(): void {
+    hilog.info(0x0000, 'GamePlay', '=== Restart button clicked ===');
+    hilog.info(0x0000, 'GamePlay', `Login mode: ${this.loginMode}, Guest play count: ${this.guestPlayCount}`);
+    
     if (this.loginMode === this.LOGIN_MODE_GUEST) {
       if (this.guestPlayCount >= this.guestPlayLimit) {
+        hilog.warn(0x0000, 'GamePlay', `Guest mode limit reached: ${this.guestPlayCount}/${this.guestPlayLimit}`);
         return;
       }
       this.guestPlayCount = this.guestPlayCount + 1;
+      hilog.info(0x0000, 'GamePlay', `Guest play count incremented to: ${this.guestPlayCount}`);
     }
+    
     this.gameState.reset();
     this.syncState();
+    hilog.info(0x0000, 'GamePlay', 'Game reset successfully');
   }
 
   /**
@@ -179,11 +186,16 @@ struct Index {
    * 切换棋盘尺寸
    */
   private switchBoardSize(size: number): void {
+    hilog.info(0x0000, 'GamePlay', `=== Switch board size clicked: ${size} ===`);
+    
     if (size === this.boardSize) {
+      hilog.info(0x0000, 'GamePlay', `Board size already ${size}, no change needed`);
       return;
     }
+    
     this.selectedBoardSize = size;
     this.boardSize = size;
+    hilog.info(0x0000, 'GamePlay', `Board size changed to: ${size}`);
 
     // 根据棋盘尺寸调整格子和棋子大小
     if (size === 30) {
@@ -196,6 +208,7 @@ struct Index {
       this.panOffsetX = 0;
       this.panOffsetY = 0;
       this.gameState = new GameState(CONFIG_30X30);
+      hilog.info(0x0000, 'GamePlay', '30x30 board initialized with scaling support');
     } else {
       this.cellSize = 22;
       this.pieceSize = 20;
@@ -206,6 +219,7 @@ struct Index {
       this.panOffsetX = 0;
       this.panOffsetY = 0;
       this.gameState = new GameState(DEFAULT_CONFIG);
+      hilog.info(0x0000, 'GamePlay', '15x15 board initialized');
     }
 
     this.syncState();
@@ -223,7 +237,7 @@ struct Index {
     const abilityContext = uiContext.getHostContext() as common.UIAbilityContext;
 
     const loginRequest: gamePlayer.UnionLoginParam = {
-      showLoginDialog: false, // 优先使用上次登录选择
+      showLoginDialog: true, // 强制弹出登录面板（便于测试）
       thirdAccountInfos: [] // 单机游戏传空数组
     };
 
@@ -245,6 +259,15 @@ struct Index {
         });
       }).catch((error: BusinessError) => {
         hilog.error(0x0000, 'GameLogin', `Failed to login. Code: ${error.code}, message: ${error.message}`);
+        
+        // 根据错误码提供更详细的提示
+        if (error.code === 1002000001) {
+          hilog.error(0x0000, 'GameLogin', '系统内部错误，可能原因：');
+          hilog.error(0x0000, 'GameLogin', '1. Game Service 未在 AGC 控制台开通');
+          hilog.error(0x0000, 'GameLogin', '2. client_id/app_id 配置不匹配');
+          hilog.error(0x0000, 'GameLogin', '3. 应用签名不匹配');
+          hilog.error(0x0000, 'GameLogin', '4. Game Service 初始化未完成');
+        }
       });
     } catch (error) {
       let err = error as BusinessError;
