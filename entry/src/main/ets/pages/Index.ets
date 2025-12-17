@@ -29,6 +29,14 @@ struct Index {
   @State boardSize: number = 15;
   @State cellSize: number = 22;
   @State pieceSize: number = 20;
+  
+  // 缩放相关状态（仅30×30棋盘使用）
+  @State scaleValue: number = 1; // 当前缩放比例
+  @State pinchValue: number = 1; // 捏合手势的缩放值
+  @State minScale: number = 0.5; // 最小缩放
+  @State maxScale: number = 3.0; // 最大缩放
+  private baseCellSize30: number = 12; // 30路棋盘基础格子大小
+  private basePieceSize30: number = 10; // 30路棋盘基础棋子大小
 
   // 棋盘配置
   private readonly boardPadding: number = 15; // 棋盘边距
@@ -137,12 +145,16 @@ struct Index {
 
     // 根据棋盘尺寸调整格子和棋子大小
     if (size === 30) {
-      this.cellSize = 12;
-      this.pieceSize = 10;
+      this.cellSize = this.baseCellSize30;
+      this.pieceSize = this.basePieceSize30;
+      this.scaleValue = 1; // 重置缩放
+      this.pinchValue = 1;
       this.gameState = new GameState(CONFIG_30X30);
     } else {
       this.cellSize = 22;
       this.pieceSize = 20;
+      this.scaleValue = 1;
+      this.pinchValue = 1;
       this.gameState = new GameState(DEFAULT_CONFIG);
     }
 
@@ -210,32 +222,97 @@ struct Index {
       Text(`总步数: ${this.totalMoves}`)
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
-        .margin({ bottom: 15 })
+        .margin({ bottom: this.boardSize === 30 ? 5 : 15 })
+      
+      // 30×30棋盘缩放提示
+      if (this.boardSize === 30) {
+        Text(`双指缩放: ${(this.scaleValue * 100).toFixed(0)}%`)
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: 10 })
+      }
 
       // 棋盘区域
-      Stack() {
-        // 棋盘背景
-        Column() {
-          // 绘制棋盘网格
-          ForEach(this.getRowIndices(), (row: number) => {
-            Row() {
-              ForEach(this.getColIndices(), (col: number) => {
-                this.BoardCell(row, col)
+      if (this.boardSize === 30) {
+        // 30×30棋盘：支持缩放和滚动
+        Scroll() {
+          Scroll() {
+            Stack() {
+              // 棋盘背景
+              Column() {
+                // 绘制棋盘网格
+                ForEach(this.getRowIndices(), (row: number) => {
+                  Row() {
+                    ForEach(this.getColIndices(), (col: number) => {
+                      this.BoardCell(row, col)
+                    })
+                  }
+                })
+              }
+              .backgroundColor($r('app.color.board_background'))
+              .padding(this.boardPadding)
+              .borderRadius(8)
+              .shadow({
+                radius: 10,
+                color: '#33000000',
+                offsetX: 2,
+                offsetY: 4
               })
+              .scale({ x: this.scaleValue, y: this.scaleValue })
             }
+            .gesture(
+              PinchGesture({ fingers: 2 })
+                .onActionStart((event: GestureEvent) => {
+                  this.pinchValue = this.scaleValue;
+                })
+                .onActionUpdate((event: GestureEvent) => {
+                  if (event && event.scale) {
+                    let newScale = this.pinchValue * event.scale;
+                    // 限制缩放范围
+                    newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+                    this.scaleValue = newScale;
+                  }
+                })
+                .onActionEnd(() => {
+                  this.pinchValue = this.scaleValue;
+                })
+            )
+          }
+          .scrollable(ScrollDirection.Horizontal)
+          .scrollBar(BarState.Auto)
+          .width('100%')
+        }
+        .scrollable(ScrollDirection.Vertical)
+        .scrollBar(BarState.Auto)
+        .width('100%')
+        .height(400)
+        .margin({ bottom: 20 })
+      } else {
+        // 15×15棋盘：保持原样
+        Stack() {
+          // 棋盘背景
+          Column() {
+            // 绘制棋盘网格
+            ForEach(this.getRowIndices(), (row: number) => {
+              Row() {
+                ForEach(this.getColIndices(), (col: number) => {
+                  this.BoardCell(row, col)
+                })
+              }
+            })
+          }
+          .backgroundColor($r('app.color.board_background'))
+          .padding(this.boardPadding)
+          .borderRadius(8)
+          .shadow({
+            radius: 10,
+            color: '#33000000',
+            offsetX: 2,
+            offsetY: 4
           })
         }
-        .backgroundColor($r('app.color.board_background'))
-        .padding(this.boardPadding)
-        .borderRadius(8)
-        .shadow({
-          radius: 10,
-          color: '#33000000',
-          offsetX: 2,
-          offsetY: 4
-        })
+        .margin({ bottom: 20 })
       }
-      .margin({ bottom: 20 })
 
       // 操作按钮区域
       Row() {
