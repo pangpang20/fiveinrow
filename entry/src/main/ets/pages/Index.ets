@@ -195,9 +195,12 @@ struct Index {
   }
 
   private handleHuaweiLogin(): void {
+    hilog.info(0x0000, 'GameLogin', 'handleHuaweiLogin called');
+    
     // 使用 Game Service Kit 进行华为账号联合登录
     const uiContext = this.getUIContext();
     if (!uiContext) {
+      hilog.error(0x0000, 'GameLogin', 'uiContext is null');
       return;
     }
     const abilityContext = uiContext.getHostContext() as common.UIAbilityContext;
@@ -254,7 +257,7 @@ struct Index {
           .fontSize(14)
           .fontColor($r('app.color.button_text'))
           .backgroundColor($r('app.color.button_primary'))
-          .width(140)
+          .width(160)
           .height(36)
           .borderRadius(18)
           .onClick(() => this.handleHuaweiLogin())
