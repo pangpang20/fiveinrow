@@ -37,6 +37,12 @@ struct Index {
   @State maxScale: number = 3.0; // 最大缩放
   private baseCellSize30: number = 12; // 30路棋盘基础格子大小
   private basePieceSize30: number = 10; // 30路棋盘基础棋子大小
+  
+  // 拖动相关状态（仅30×30棋盘缩放后使用）
+  @State offsetX: number = 0; // 水平偏移
+  @State offsetY: number = 0; // 垂直偏移
+  private panOffsetX: number = 0; // 拖动手势的水平偏移
+  private panOffsetY: number = 0; // 拖动手势的垂直偏移
 
   // 棋盘配置
   private readonly boardPadding: number = 15; // 棋盘边距
@@ -149,12 +155,20 @@ struct Index {
       this.pieceSize = this.basePieceSize30;
       this.scaleValue = 1; // 重置缩放
       this.pinchValue = 1;
+      this.offsetX = 0; // 重置偏移
+      this.offsetY = 0;
+      this.panOffsetX = 0;
+      this.panOffsetY = 0;
       this.gameState = new GameState(CONFIG_30X30);
     } else {
       this.cellSize = 22;
       this.pieceSize = 20;
       this.scaleValue = 1;
       this.pinchValue = 1;
+      this.offsetX = 0;
+      this.offsetY = 0;
+      this.panOffsetX = 0;
+      this.panOffsetY = 0;
       this.gameState = new GameState(DEFAULT_CONFIG);
     }
 
@@ -181,7 +195,7 @@ struct Index {
           .fontSize(14)
           .fontColor(this.selectedBoardSize === 15 ? $r('app.color.button_text') : $r('app.color.primary_text'))
           .backgroundColor(this.selectedBoardSize === 15 ? $r('app.color.button_primary') : '#E0E0E0')
-          .width(70)
+          .width(80)
           .height(32)
           .borderRadius(16)
           .onClick(() => this.switchBoardSize(15))
@@ -190,7 +204,7 @@ struct Index {
           .fontSize(14)
           .fontColor(this.selectedBoardSize === 30 ? $r('app.color.button_text') : $r('app.color.primary_text'))
           .backgroundColor(this.selectedBoardSize === 30 ? $r('app.color.button_primary') : '#E0E0E0')
-          .width(70)
+          .width(80)
           .height(32)
           .borderRadius(16)
           .margin({ left: 10 })
@@ -259,23 +273,43 @@ struct Index {
                 offsetY: 4
               })
               .scale({ x: this.scaleValue, y: this.scaleValue })
+              .translate({ x: this.offsetX, y: this.offsetY })
             }
             .gesture(
-              PinchGesture({ fingers: 2 })
-                .onActionStart((event: GestureEvent) => {
-                  this.pinchValue = this.scaleValue;
-                })
-                .onActionUpdate((event: GestureEvent) => {
-                  if (event && event.scale) {
-                    let newScale = this.pinchValue * event.scale;
-                    // 限制缩放范围
-                    newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
-                    this.scaleValue = newScale;
-                  }
-                })
-                .onActionEnd(() => {
-                  this.pinchValue = this.scaleValue;
-                })
+              // 双指缩放手势
+              GestureGroup(GestureMode.Parallel,
+                PinchGesture({ fingers: 2 })
+                  .onActionStart((event: GestureEvent) => {
+                    this.pinchValue = this.scaleValue;
+                  })
+                  .onActionUpdate((event: GestureEvent) => {
+                    if (event && event.scale) {
+                      let newScale = this.pinchValue * event.scale;
+                      // 限制缩放范围
+                      newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+                      this.scaleValue = newScale;
+                    }
+                  })
+                  .onActionEnd(() => {
+                    this.pinchValue = this.scaleValue;
+                  }),
+                // 双指拖动手势
+                PanGesture({ fingers: 2, direction: PanDirection.All })
+                  .onActionStart(() => {
+                    this.panOffsetX = this.offsetX;
+                    this.panOffsetY = this.offsetY;
+                  })
+                  .onActionUpdate((event: GestureEvent) => {
+                    if (event) {
+                      this.offsetX = this.panOffsetX + (event.offsetX || 0);
+                      this.offsetY = this.panOffsetY + (event.offsetY || 0);
+                    }
+                  })
+                  .onActionEnd(() => {
+                    this.panOffsetX = this.offsetX;
+                    this.panOffsetY = this.offsetY;
+                  })
+              )
             )
           }
           .scrollable(ScrollDirection.Horizontal)
