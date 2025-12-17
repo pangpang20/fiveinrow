@@ -101,8 +101,18 @@ struct Index {
    * 处理落子事件
    */
   private handleCellClick(row: number, col: number): void {
+    hilog.info(0x0000, 'GamePlay', `=== Cell clicked: row=${row}, col=${col} ===`);
+    hilog.info(0x0000, 'GamePlay', `Current player: ${this.currentPlayer === PieceType.BLACK ? 'BLACK' : 'WHITE'}`);
+    hilog.info(0x0000, 'GamePlay', `Game status: ${this.gameStatus}`);
+    hilog.info(0x0000, 'GamePlay', `Total moves before: ${this.totalMoves}`);
+    
     if (this.gameState.placePiece(row, col)) {
+      hilog.info(0x0000, 'GamePlay', `Piece placed successfully at (${row}, ${col})`);
       this.syncState();
+      hilog.info(0x0000, 'GamePlay', `Total moves after: ${this.totalMoves}`);
+      hilog.info(0x0000, 'GamePlay', `New game status: ${this.gameStatus}`);
+    } else {
+      hilog.warn(0x0000, 'GamePlay', `Failed to place piece at (${row}, ${col}) - position may be occupied or game is over`);
     }
   }
 
@@ -110,8 +120,15 @@ struct Index {
    * 处理悔棋事件
    */
   private handleUndo(): void {
+    hilog.info(0x0000, 'GamePlay', '=== Undo button clicked ===');
+    hilog.info(0x0000, 'GamePlay', `Total moves before undo: ${this.totalMoves}`);
+    
     if (this.gameState.undo()) {
+      hilog.info(0x0000, 'GamePlay', 'Undo successful');
       this.syncState();
+      hilog.info(0x0000, 'GamePlay', `Total moves after undo: ${this.totalMoves}`);
+    } else {
+      hilog.warn(0x0000, 'GamePlay', 'Undo failed - no moves to undo');
     }
   }
 
@@ -236,10 +253,12 @@ struct Index {
   }
 
   private handleGuestLogin(): void {
+    hilog.info(0x0000, 'GameLogin', 'handleGuestLogin method called');
     if (this.loginMode !== this.LOGIN_MODE_GUEST) {
       this.guestPlayCount = 1;
     }
     this.loginMode = this.LOGIN_MODE_GUEST;
+    hilog.info(0x0000, 'GameLogin', `Guest mode activated, loginMode: ${this.loginMode}`);
   }
 
   build() {
@@ -260,7 +279,10 @@ struct Index {
           .width(160)
           .height(36)
           .borderRadius(18)
-          .onClick(() => this.handleHuaweiLogin())
+          .onClick(() => {
+            hilog.info(0x0000, 'GameLogin', '=== Button clicked: 华为账号快速开始 ===');
+            this.handleHuaweiLogin();
+          })
 
         Button('游客模式（3局）')
           .fontSize(14)
@@ -270,7 +292,10 @@ struct Index {
           .height(36)
           .borderRadius(18)
           .margin({ left: 12 })
-          .onClick(() => this.handleGuestLogin())
+          .onClick(() => {
+            hilog.info(0x0000, 'GameLogin', '=== Button clicked: 游客模式 ===');
+            this.handleGuestLogin();
+          })
       }
       .margin({ bottom: 10 })
 
