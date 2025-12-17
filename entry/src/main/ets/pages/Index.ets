@@ -240,7 +240,7 @@ struct Index {
       
       // 30×30棋盘缩放提示
       if (this.boardSize === 30) {
-        Text(`双指缩放: ${(this.scaleValue * 100).toFixed(0)}%`)
+        Text(`双指缩放: ${(this.scaleValue * 100).toFixed(0)}% | 支持双指拖拽移动`)
           .fontSize(12)
           .fontColor($r('app.color.secondary_text'))
           .margin({ bottom: 10 })
@@ -319,8 +319,8 @@ struct Index {
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Auto)
         .width('100%')
-        .height(400)
-        .margin({ bottom: 20 })
+        .layoutWeight(1)
+        .margin({ bottom: 15 })
       } else {
         // 15×15棋盘：保持原样
         Stack() {
@@ -371,7 +371,7 @@ struct Index {
           .margin({ left: 20 })
           .onClick(() => this.handleRestart())
       }
-      .margin({ bottom: 20 })
+      .margin({ bottom: this.boardSize === 30 ? 10 : 20 })
 
       // 版本信息和关于作者
       Column() {
@@ -389,7 +389,7 @@ struct Index {
           .fontSize(10)
           .fontColor($r('app.color.secondary_text'))
       }
-      .margin({ bottom: 15 })
+      .margin({ bottom: this.boardSize === 30 ? 10 : 15 })
     }
     .width('100%')
     .height('100%')
