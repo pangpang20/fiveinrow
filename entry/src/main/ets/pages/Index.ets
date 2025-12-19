@@ -5,11 +5,7 @@
 
 import { PieceType, GameStatus, GameConfig, DEFAULT_CONFIG, CONFIG_30X30, BOARD_SIZE_OPTIONS } from '../model/GameTypes';
 import { GameState } from '../model/GameState';
-import { gamePlayer } from '@kit.GameServiceKit';
-import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { BusinessError } from '@kit.BasicServicesKit';
-import { GameServiceState } from '../entryability/EntryAbility';
 
 @Entry
 @Component
@@ -35,14 +31,7 @@ struct Index {
   @State cellSize: number = 22;
   @State pieceSize: number = 20;
 
-  // 登录与模式状态
-  private readonly LOGIN_MODE_NONE: number = 0;
-  private readonly LOGIN_MODE_HUAWEI: number = 1;
-  private readonly LOGIN_MODE_GUEST: number = 2;
-  @State loginMode: number = 2; // 默认进入游客模式
-  @State guestPlayCount: number = 1; // 默认开始第1局
-  private readonly guestPlayLimit: number = 5; // 游客模式5局限制
-  @State playerAccountName: string = '';
+
   
   // 缩放相关状态（仅30×30棋盘使用）
   @State scaleValue: number = 1; // 当前缩放比例
@@ -138,16 +127,7 @@ struct Index {
    */
   private handleRestart(): void {
     hilog.info(0x0000, 'GamePlay', '=== Restart button clicked ===');
-    hilog.info(0x0000, 'GamePlay', `Login mode: ${this.loginMode}, Guest play count: ${this.guestPlayCount}`);
     
-    if (this.loginMode === this.LOGIN_MODE_GUEST) {
-      if (this.guestPlayCount >= this.guestPlayLimit) {
-        hilog.warn(0x0000, 'GamePlay', `Guest mode limit reached: ${this.guestPlayCount}/${this.guestPlayLimit}`);
-        return;
-      }
-      this.guestPlayCount = this.guestPlayCount + 1;
-      hilog.info(0x0000, 'GamePlay', `Guest play count incremented to: ${this.guestPlayCount}`);
-    }
     
     this.gameState.reset();
     this.syncState();
@@ -226,88 +206,7 @@ struct Index {
     this.syncState();
   }
 
-  private handleHuaweiLogin(): void {
-    hilog.info(0x0000, 'GameLogin', 'handleHuaweiLogin called');
-    
-    // 检查 Game Service 初始化状态
-    if (!GameServiceState.isInitialized) {
-      hilog.error(0x0000, 'GameLogin', '✗ Game Service 尚未初始化完成');
-      if (GameServiceState.initError) {
-        hilog.error(0x0000, 'GameLogin', `初始化错误: ${GameServiceState.initError.message}`);
-      }
-      hilog.error(0x0000, 'GameLogin', '请检查：');
-      hilog.error(0x0000, 'GameLogin', '1. AGC 控制台是否已开通 Game Service');
-      hilog.error(0x0000, 'GameLogin', '2. module.json5 中 client_id/app_id 是否正确');
-      hilog.error(0x0000, 'GameLogin', '3. 是否使用手动签名（必须！）');
-      hilog.error(0x0000, 'GameLogin', '4. 签名证书指纹是否在 AGC 配置');
-      return;
-    }
-    
-    hilog.info(0x0000, 'GameLogin', '✓ Game Service 已初始化，开始登录...');
-    
-    // 使用 Game Service Kit 进行华为账号联合登录
-    const uiContext = this.getUIContext();
-    if (!uiContext) {
-      hilog.error(0x0000, 'GameLogin', 'uiContext is null');
-      return;
-    }
-    const abilityContext = uiContext.getHostContext() as common.UIAbilityContext;
 
-    const loginRequest: gamePlayer.UnionLoginParam = {
-      showLoginDialog: true, // 强制弹出登录面板（便于测试）
-      thirdAccountInfos: [] // 单机游戏传空数组
-    };
-
-    try {
-      gamePlayer.unionLogin(abilityContext, loginRequest).then((result: gamePlayer.UnionLoginResult) => {
-        hilog.info(0x0000, 'GameLogin', `Succeeded in logining: ${result?.accountName}`);
-
-        // 登录成功后进行合规校验（实名 + 防沉迷）
-        const verifyRequest: gamePlayer.ThirdUserInfo = {
-          thirdOpenId: '' // 单机游戏传空
-        };
-        gamePlayer.verifyLocalPlayer(abilityContext, verifyRequest).then(() => {
-          hilog.info(0x0000, 'GameLogin', 'Succeeded in verifying local player.');
-          // 校验通过后，切换为华为账号模式
-          this.playerAccountName = result?.accountName ?? '';
-          this.loginMode = this.LOGIN_MODE_HUAWEI;
-        }).catch((error: BusinessError) => {
-          hilog.error(0x0000, 'GameLogin', `Failed to verify. Code: ${error.code}, message: ${error.message}`);
-        });
-      }).catch((error: BusinessError) => {
-        hilog.error(0x0000, 'GameLogin', `Failed to login. Code: ${error.code}, message: ${error.message}`);
-        
-        // 根据错误码提供更详细的提示
-        if (error.code === 1002000001) {
-          hilog.error(0x0000, 'GameLogin', '========== 系统内部错误 1002000001 ==========');
-          hilog.error(0x0000, 'GameLogin', '可能原因：');
-          hilog.error(0x0000, 'GameLogin', '1. Game Service 未在 AGC 控制台开通');
-          hilog.error(0x0000, 'GameLogin', '2. client_id/app_id 配置不匹配');
-          hilog.error(0x0000, 'GameLogin', '   当前配置: client_id=1825612645147933632');
-          hilog.error(0x0000, 'GameLogin', '   当前配置: app_id=6917592336237022376');
-          hilog.error(0x0000, 'GameLogin', '3. 应用签名不匹配（检查 SHA-256 指纹）');
-          hilog.error(0x0000, 'GameLogin', '4. 使用了自动签名（必须使用手动签名！）');
-          hilog.error(0x0000, 'GameLogin', '===============================================');
-        } else if (error.code === 1002000002) {
-          hilog.error(0x0000, 'GameLogin', '网络异常，请检查：');
-          hilog.error(0x0000, 'GameLogin', '1. 设备系统时间是否正确');
-          hilog.error(0x0000, 'GameLogin', '2. 网络连接是否正常');
-        }
-      });
-    } catch (error) {
-      let err = error as BusinessError;
-      hilog.error(0x0000, 'GameLogin', `Failed to login. Code: ${err.code}, message: ${err.message}`);
-    }
-  }
-
-  private handleGuestLogin(): void {
-    hilog.info(0x0000, 'GameLogin', 'handleGuestLogin method called');
-    if (this.loginMode !== this.LOGIN_MODE_GUEST) {
-      this.guestPlayCount = 1;
-    }
-    this.loginMode = this.LOGIN_MODE_GUEST;
-    hilog.info(0x0000, 'GameLogin', `Guest mode activated, loginMode: ${this.loginMode}`);
-  }
 
   build() {
     Column() {
@@ -318,46 +217,7 @@ struct Index {
         .fontColor($r('app.color.primary_text'))
         .margin({ top: 20, bottom: 10 })
 
-      // 登录模式选择
-      Row() {
-        Button('华为账号快速开始')
-          .fontSize(14)
-          .fontColor($r('app.color.button_text'))
-          .backgroundColor($r('app.color.button_primary'))
-          .width(160)
-          .height(36)
-          .borderRadius(18)
-          .onClick(() => {
-            hilog.info(0x0000, 'GameLogin', '=== Button clicked: 华为账号快速开始 ===');
-            this.handleHuaweiLogin();
-          })
 
-        Button('游客模式（5局）')
-          .fontSize(14)
-          .fontColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_text') : $r('app.color.primary_text'))
-          .backgroundColor(this.loginMode === this.LOGIN_MODE_GUEST ? $r('app.color.button_secondary') : '#E0E0E0')
-          .width(140)
-          .height(36)
-          .borderRadius(18)
-          .margin({ left: 12 })
-          .onClick(() => {
-            hilog.info(0x0000, 'GameLogin', '=== Button clicked: 游客模式 ===');
-            this.handleGuestLogin();
-          })
-      }
-      .margin({ bottom: 10 })
-
-      if (this.loginMode === this.LOGIN_MODE_HUAWEI) {
-        Text(`当前玩家：${this.playerAccountName || '华为账号用户'}`)
-          .fontSize(12)
-          .fontColor($r('app.color.secondary_text'))
-          .margin({ bottom: 4 })
-
-        Text('快去找你的小伙伴一起玩吧')
-          .fontSize(12)
-          .fontColor($r('app.color.secondary_text'))
-          .margin({ bottom: 8 })
-      }
 
       // 棋盘尺寸选择区域
       Row() {
@@ -387,12 +247,7 @@ struct Index {
       }
       .margin({ bottom: 10 })
 
-      if (this.loginMode === this.LOGIN_MODE_GUEST) {
-        Text(`游客模式：剩余${this.guestPlayLimit - this.guestPlayCount}局`)
-          .fontSize(12)
-          .fontColor($r('app.color.secondary_text'))
-          .margin({ bottom: 6 })
-      }
+
 
       // 状态显示区域
       Row() {
@@ -551,8 +406,8 @@ struct Index {
           .height(44)
           .borderRadius(22)
           .margin({ left: 20 })
-          .enabled(this.totalMoves > 0 && !(this.loginMode === this.LOGIN_MODE_GUEST && this.guestPlayCount >= this.guestPlayLimit))
-          .opacity(this.totalMoves > 0 && !(this.loginMode === this.LOGIN_MODE_GUEST && this.guestPlayCount >= this.guestPlayLimit) ? 1 : 0.5)
+          .enabled(this.totalMoves > 0)
+          .opacity(this.totalMoves > 0 ? 1 : 0.5)
           .onClick(() => this.handleRestart())
       }
       .margin({ bottom: this.boardSize === 30 ? 10 : 20 })
