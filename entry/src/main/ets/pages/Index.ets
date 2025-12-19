@@ -9,6 +9,7 @@ import { gamePlayer } from '@kit.GameServiceKit';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { GameServiceState } from '../entryability/EntryAbility';
 
 @Entry
 @Component
@@ -228,6 +229,22 @@ struct Index {
   private handleHuaweiLogin(): void {
     hilog.info(0x0000, 'GameLogin', 'handleHuaweiLogin called');
     
+    // 检查 Game Service 初始化状态
+    if (!GameServiceState.isInitialized) {
+      hilog.error(0x0000, 'GameLogin', '✗ Game Service 尚未初始化完成');
+      if (GameServiceState.initError) {
+        hilog.error(0x0000, 'GameLogin', `初始化错误: ${GameServiceState.initError.message}`);
+      }
+      hilog.error(0x0000, 'GameLogin', '请检查：');
+      hilog.error(0x0000, 'GameLogin', '1. AGC 控制台是否已开通 Game Service');
+      hilog.error(0x0000, 'GameLogin', '2. module.json5 中 client_id/app_id 是否正确');
+      hilog.error(0x0000, 'GameLogin', '3. 是否使用手动签名（必须！）');
+      hilog.error(0x0000, 'GameLogin', '4. 签名证书指纹是否在 AGC 配置');
+      return;
+    }
+    
+    hilog.info(0x0000, 'GameLogin', '✓ Game Service 已初始化，开始登录...');
+    
     // 使用 Game Service Kit 进行华为账号联合登录
     const uiContext = this.getUIContext();
     if (!uiContext) {
@@ -262,11 +279,19 @@ struct Index {
         
         // 根据错误码提供更详细的提示
         if (error.code === 1002000001) {
-          hilog.error(0x0000, 'GameLogin', '系统内部错误，可能原因：');
+          hilog.error(0x0000, 'GameLogin', '========== 系统内部错误 1002000001 ==========');
+          hilog.error(0x0000, 'GameLogin', '可能原因：');
           hilog.error(0x0000, 'GameLogin', '1. Game Service 未在 AGC 控制台开通');
           hilog.error(0x0000, 'GameLogin', '2. client_id/app_id 配置不匹配');
-          hilog.error(0x0000, 'GameLogin', '3. 应用签名不匹配');
-          hilog.error(0x0000, 'GameLogin', '4. Game Service 初始化未完成');
+          hilog.error(0x0000, 'GameLogin', '   当前配置: client_id=1825612645147933632');
+          hilog.error(0x0000, 'GameLogin', '   当前配置: app_id=6917592336237022376');
+          hilog.error(0x0000, 'GameLogin', '3. 应用签名不匹配（检查 SHA-256 指纹）');
+          hilog.error(0x0000, 'GameLogin', '4. 使用了自动签名（必须使用手动签名！）');
+          hilog.error(0x0000, 'GameLogin', '===============================================');
+        } else if (error.code === 1002000002) {
+          hilog.error(0x0000, 'GameLogin', '网络异常，请检查：');
+          hilog.error(0x0000, 'GameLogin', '1. 设备系统时间是否正确');
+          hilog.error(0x0000, 'GameLogin', '2. 网络连接是否正常');
         }
       });
     } catch (error) {
