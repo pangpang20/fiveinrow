@@ -211,7 +211,7 @@ struct Index {
   build() {
     Column() {
       // 标题区域
-      Text('五子棋')
+      Text('FiveInRow 五子棋')
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('app.color.primary_text'))
