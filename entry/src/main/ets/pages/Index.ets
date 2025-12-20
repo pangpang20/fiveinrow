@@ -12,12 +12,14 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 // 礼花粒子接口
 interface ConfettiItem {
   id: number;
-  x: number;
-  y: number;
+  left: Length;
+  top: Length;
   color: string;
   size: number;
   rotation: number;
   symbol: string;
+  opacity: number;
+  scale: number;
 }
 
 @Entry
@@ -182,24 +184,29 @@ struct Index {
    * 生成礼花粒子
    */
   private generateConfetti(): void {
-    const colors = [
+    const colors: string[] = [
       '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
       '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', 
-      '#85C1E9', '#FF69B4', '#00CED1', '#FF4500', '#32CD32'
+      '#85C1E9', '#FF69B4', '#00CED1', '#FF4500', '#32CD32',
+      '#E74C3C', '#9B59B6', '#3498DB', '#1ABC9C', '#F39C12'
     ];
-    const symbols = ['✨', '⭐', '🌟', '♥', '◆', '●', '💎', '🌈'];
+    const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
     const items: ConfettiItem[] = [];
     
-    // 创建更多粒子，均匀分布
-    for (let i = 0; i < 100; i++) {
+    // 创建粒子，分布在整个屏幕
+    for (let i = 0; i < 80; i++) {
+      const leftPercent = Math.random() * 95;
+      const topPercent = Math.random() * 90;
       items.push({
         id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
+        left: `${leftPercent}%`,
+        top: `${topPercent}%`,
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 14 + Math.random() * 22,
+        size: 18 + Math.random() * 28,
         rotation: Math.random() * 360,
-        symbol: symbols[Math.floor(Math.random() * symbols.length)]
+        symbol: symbols[Math.floor(Math.random() * symbols.length)],
+        opacity: 0.7 + Math.random() * 0.3,
+        scale: 0.8 + Math.random() * 0.6
       });
     }
     
@@ -490,74 +497,82 @@ struct Index {
 
       // 庆祝弹窗层
       if (this.showCelebration) {
-        Stack() {
-          // 半透明背景
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor('#99000000')
-            .onClick(() => this.closeCelebration())
-
-          // 礼花粒子
-          ForEach(this.confettiItems, (item: ConfettiItem) => {
-            Text(item.symbol)
-              .fontSize(item.size)
-              .fontColor(item.color)
-              .position({ x: `${item.x}%`, y: `${item.y}%` })
-              .rotate({ angle: item.rotation })
-              .opacity(0.85)
-              .shadow({ radius: 8, color: item.color, offsetX: 0, offsetY: 0 })
-          })
+        Column() {
+          // 礼花粒子层
+          Stack() {
+            ForEach(this.confettiItems, (item: ConfettiItem) => {
+              Text(item.symbol)
+                .fontSize(item.size)
+                .fontColor(item.color)
+                .opacity(item.opacity)
+                .rotate({ angle: item.rotation })
+                .scale({ x: item.scale, y: item.scale })
+                .shadow({ radius: 12, color: item.color, offsetX: 0, offsetY: 0 })
+                .position({ x: item.left, y: item.top })
+            }, (item: ConfettiItem) => item.id.toString())
+          }
+          .width('100%')
+          .height('100%')
+          .position({ x: 0, y: 0 })
 
           // 中心内容卡片
           Column() {
+            // 皇冠装饰
+            Text('👑')
+              .fontSize(60)
+              .margin({ bottom: 10 })
+
             // 获胜者文本
             Text(this.winnerText)
-              .fontSize(32)
+              .fontSize(34)
               .fontWeight(FontWeight.Bold)
               .fontColor('#FFFFFF')
               .margin({ bottom: 16 })
-              .textShadow({ radius: 10, color: '#000000', offsetX: 2, offsetY: 2 })
+              .textShadow({ radius: 15, color: '#000000', offsetX: 2, offsetY: 2 })
 
             // 夸奖语
             Text(this.celebrationText)
-              .fontSize(52)
+              .fontSize(48)
               .fontWeight(FontWeight.Bold)
               .fontColor('#FFD700')
-              .margin({ bottom: 30 })
-              .textShadow({ radius: 15, color: '#FF8C00', offsetX: 0, offsetY: 0 })
+              .margin({ bottom: 24 })
+              .textShadow({ radius: 20, color: '#FF8C00', offsetX: 0, offsetY: 0 })
 
-            // 分割线
-            Row()
-              .width(120)
-              .height(3)
-              .backgroundColor('#FFD700')
-              .borderRadius(2)
-              .margin({ bottom: 30 })
+            // 装饰分割线
+            Row() {
+              Text('✦').fontSize(16).fontColor('#FFD700')
+              Row().width(80).height(2).backgroundColor('#FFD700').margin({ left: 8, right: 8 })
+              Text('✦').fontSize(16).fontColor('#FFD700')
+            }
+            .margin({ bottom: 28 })
 
             // 再来一局按钮
             Button('🎮 再来一局')
-              .fontSize(18)
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
               .fontColor('#FFFFFF')
               .backgroundColor('#4CAF50')
-              .width(180)
-              .height(55)
-              .borderRadius(28)
-              .shadow({ radius: 15, color: '#2E7D32', offsetX: 0, offsetY: 5 })
+              .width(200)
+              .height(60)
+              .borderRadius(30)
+              .shadow({ radius: 20, color: '#2E7D32', offsetX: 0, offsetY: 6 })
               .onClick(() => {
                 this.closeCelebration();
                 this.handleRestart();
               })
           }
-          .padding(40)
-          .backgroundColor('#CC000000')
-          .borderRadius(24)
-          .shadow({ radius: 30, color: '#000000', offsetX: 0, offsetY: 10 })
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
+          .width('85%')
+          .padding({ top: 30, bottom: 40, left: 30, right: 30 })
+          .backgroundColor('#DD1A1A2E')
+          .borderRadius(28)
+          .border({ width: 2, color: '#FFD700' })
+          .shadow({ radius: 40, color: '#000000', offsetX: 0, offsetY: 15 })
+          .position({ x: '7.5%', y: '25%' })
         }
         .width('100%')
         .height('100%')
+        .backgroundColor('#CC000000')
+        .onClick(() => this.closeCelebration())
       }
     }
     .width('100%')
