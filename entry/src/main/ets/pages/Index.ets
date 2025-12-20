@@ -50,10 +50,10 @@ struct Index {
   @State winnerText: string = '';
   @State confettiItems: ConfettiItem[] = [];
   @State animationTick: number = 0; // 动画帧计数器
+  @State screenWidth: number = 400;  // 屏幕宽度，动态获取
+  @State screenHeight: number = 800; // 屏幕高度，动态获取
   private celebrationTimer: number = -1;
   private animationTimer: number = -1;
-  private screenWidth: number = 360;
-  private screenHeight: number = 780;
 
   // 夸奖语列表
   private readonly praises: string[] = [
@@ -198,8 +198,8 @@ struct Index {
     const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
     const items: ConfettiItem[] = [];
     
-    const w = this.screenWidth;
-    const h = this.screenHeight;
+    const w = this.screenWidth > 0 ? this.screenWidth : 400;
+    const h = this.screenHeight > 0 ? this.screenHeight : 800;
     
     // 创建粒子，初始分布在不同高度
     for (let i = 0; i < 50; i++) {
@@ -230,11 +230,10 @@ struct Index {
       clearInterval(this.animationTimer);
     }
     
-    const w = this.screenWidth;
-    const h = this.screenHeight;
-    
     // 25fps 动画
     this.animationTimer = setInterval(() => {
+      const w = this.screenWidth > 0 ? this.screenWidth : 400;
+      const h = this.screenHeight > 0 ? this.screenHeight : 800;
       const items = this.confettiItems;
       for (let i = 0; i < items.length; i++) {
         items[i].y += items[i].speedY;
@@ -253,6 +252,19 @@ struct Index {
       // 更新 tick 触发 UI 刷新
       this.animationTick++;
     }, 40) as number;
+  }
+
+  /**
+   * 重新分布粒子以覆盖整个屏幕
+   */
+  private redistributeConfetti(): void {
+    const w = this.screenWidth;
+    const h = this.screenHeight;
+    const items = this.confettiItems;
+    for (let i = 0; i < items.length; i++) {
+      items[i].x = Math.random() * w;
+      items[i].y = Math.random() * h - 50;
+    }
   }
 
   /**
@@ -557,13 +569,27 @@ struct Index {
               Text(item.symbol)
                 .fontSize(item.size)
                 .fontColor(item.color)
-                .rotate({ angle: item.rotation + this.animationTick * 0 })
+                .rotate({ angle: item.rotation })
                 .shadow({ radius: 8, color: item.color, offsetX: 0, offsetY: 0 })
-                .offset({ x: item.x, y: item.y })
+                .position({ x: item.x + this.animationTick * 0, y: item.y })
             }, (item: ConfettiItem) => `${item.id}_${this.animationTick}`)
           }
           .width('100%')
           .height('100%')
+          .clip(true)
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            // 动态获取实际屏幕尺寸
+            const newWidth = Number(newArea.width);
+            const newHeight = Number(newArea.height);
+            if (newWidth > 0 && newHeight > 0) {
+              if (this.screenWidth !== newWidth || this.screenHeight !== newHeight) {
+                this.screenWidth = newWidth;
+                this.screenHeight = newHeight;
+                // 重新分布粒子以覆盖整个屏幕
+                this.redistributeConfetti();
+              }
+            }
+          })
 
           // 中心内容卡片
           Column() {
