@@ -12,16 +12,15 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 // 礼花粒子接口
 interface ConfettiItem {
   id: number;
-  x: number;      // 水平位置百分比
-  y: number;      // 垂直位置百分比
+  x: number;      // 水平位置 vp
+  y: number;      // 垂直位置 vp
   speedY: number; // 下落速度
   speedX: number; // 水平摇摆速度
   color: string;
   size: number;
   rotation: number;
-  rotationSpeed: number; // 旋转速度
+  rotationSpeed: number;
   symbol: string;
-  opacity: number;
 }
 
 @Entry
@@ -50,8 +49,11 @@ struct Index {
   @State celebrationText: string = '';
   @State winnerText: string = '';
   @State confettiItems: ConfettiItem[] = [];
+  @State animationTick: number = 0; // 动画帧计数器
   private celebrationTimer: number = -1;
   private animationTimer: number = -1;
+  private screenWidth: number = 360;
+  private screenHeight: number = 780;
 
   // 夸奖语列表
   private readonly praises: string[] = [
@@ -196,24 +198,27 @@ struct Index {
     const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
     const items: ConfettiItem[] = [];
     
+    const w = this.screenWidth;
+    const h = this.screenHeight;
+    
     // 创建粒子，初始分布在不同高度
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 50; i++) {
       items.push({
         id: i,
-        x: Math.random() * 100,
-        y: -10 + Math.random() * 110, // 从屏幕上方开始
-        speedY: 0.3 + Math.random() * 0.8, // 不同的下落速度
-        speedX: (Math.random() - 0.5) * 0.4, // 左右摇摆
+        x: Math.random() * w,
+        y: Math.random() * h - 50,
+        speedY: 2 + Math.random() * 4,
+        speedX: (Math.random() - 0.5) * 2,
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 20 + Math.random() * 26,
+        size: 22 + Math.random() * 22,
         rotation: Math.random() * 360,
-        rotationSpeed: (Math.random() - 0.5) * 6, // 旋转速度
-        symbol: symbols[Math.floor(Math.random() * symbols.length)],
-        opacity: 0.75 + Math.random() * 0.25
+        rotationSpeed: (Math.random() - 0.5) * 8,
+        symbol: symbols[Math.floor(Math.random() * symbols.length)]
       });
     }
     
     this.confettiItems = items;
+    this.animationTick = 0;
     this.startConfettiAnimation();
   }
 
@@ -221,45 +226,33 @@ struct Index {
    * 启动礼花动画
    */
   private startConfettiAnimation(): void {
-    // 清除旧的定时器
     if (this.animationTimer !== -1) {
       clearInterval(this.animationTimer);
     }
     
-    // 30fps 动画
+    const w = this.screenWidth;
+    const h = this.screenHeight;
+    
+    // 25fps 动画
     this.animationTimer = setInterval(() => {
-      const newItems: ConfettiItem[] = [];
-      for (const item of this.confettiItems) {
-        let newY = item.y + item.speedY;
-        let newX = item.x + item.speedX;
-        let newRotation = item.rotation + item.rotationSpeed;
+      const items = this.confettiItems;
+      for (let i = 0; i < items.length; i++) {
+        items[i].y += items[i].speedY;
+        items[i].x += items[i].speedX;
+        items[i].rotation += items[i].rotationSpeed;
         
         // 落到底部后重新从顶部开始
-        if (newY > 105) {
-          newY = -5;
-          newX = Math.random() * 100;
+        if (items[i].y > h + 30) {
+          items[i].y = -30;
+          items[i].x = Math.random() * w;
         }
-        
-        // 水平边界处理
-        if (newX < 0) newX = 100;
-        if (newX > 100) newX = 0;
-        
-        newItems.push({
-          id: item.id,
-          x: newX,
-          y: newY,
-          speedY: item.speedY,
-          speedX: item.speedX,
-          color: item.color,
-          size: item.size,
-          rotation: newRotation,
-          rotationSpeed: item.rotationSpeed,
-          symbol: item.symbol,
-          opacity: item.opacity
-        });
+        // 水平边界
+        if (items[i].x < -20) items[i].x = w + 10;
+        if (items[i].x > w + 20) items[i].x = -10;
       }
-      this.confettiItems = newItems;
-    }, 33) as number;
+      // 更新 tick 触发 UI 刷新
+      this.animationTick++;
+    }, 40) as number;
   }
 
   /**
@@ -558,21 +551,19 @@ struct Index {
       // 庆祝弹窗层
       if (this.showCelebration) {
         Column() {
-          // 礼花粒子层
+          // 礼花粒子层 - 使用 animationTick 触发重绘
           Stack() {
             ForEach(this.confettiItems, (item: ConfettiItem) => {
               Text(item.symbol)
                 .fontSize(item.size)
                 .fontColor(item.color)
-                .opacity(item.opacity)
-                .rotate({ angle: item.rotation })
-                .shadow({ radius: 10, color: item.color, offsetX: 0, offsetY: 0 })
-                .position({ x: `${item.x}%`, y: `${item.y}%` })
-            }, (item: ConfettiItem) => item.id.toString())
+                .rotate({ angle: item.rotation + this.animationTick * 0 })
+                .shadow({ radius: 8, color: item.color, offsetX: 0, offsetY: 0 })
+                .offset({ x: item.x, y: item.y })
+            }, (item: ConfettiItem) => `${item.id}_${this.animationTick}`)
           }
           .width('100%')
           .height('100%')
-          .position({ x: 0, y: 0 })
 
           // 中心内容卡片
           Column() {
