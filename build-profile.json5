@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\pangpang\\.ohos\\config\\default_fiveinrow_WKQuLQ54EPl-o-niSmfWAX9HiI9wLBk-NZZB-VeXb74=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B6850D0BEC4406D8C3CEBBCF2290FE7C1B6C64A28A5433A64B754FF894D03AA066276D6F7CE58F9",
+          "profile": "C:\\Users\\pangpang\\.ohos\\config\\default_fiveinrow_WKQuLQ54EPl-o-niSmfWAX9HiI9wLBk-NZZB-VeXb74=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\pangpang\\.ohos\\config\\default_fiveinrow_WKQuLQ54EPl-o-niSmfWAX9HiI9wLBk-NZZB-VeXb74=.p12",
+          "storePassword": "0000001BEB0A84E7B0936A2221B838A9F19C81B987B6460293ED2875CD74F6301CC41B21960AAD7C76BA4F"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

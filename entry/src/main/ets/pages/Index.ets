@@ -330,7 +330,7 @@ struct Index {
             .fontColor($r('app.color.secondary_text'))
             .margin({ left: 10 })
         }
-        .margin({ top: 5, bottom: 5 })
+        .margin({ top: 2, bottom: 2 })
       }
       
       // 缩放提示（非最大化的30×30棋盘）
@@ -415,7 +415,7 @@ struct Index {
         .scrollBar(BarState.Off)
         .width('100%')
         .layoutWeight(1)
-        .margin({ bottom: 10 })
+        .margin({ bottom: this.isMaximized ? 2 : 10 })
       } else {
         // 15×15棋盘非最大化：保持原样
         Stack() {
@@ -468,7 +468,7 @@ struct Index {
           .opacity(this.totalMoves > 0 ? 1 : 0.5)
           .onClick(() => this.handleRestart())
       }
-      .margin({ bottom: this.isMaximized ? 10 : (this.boardSize === 30 ? 10 : 20) })
+      .margin({ bottom: this.isMaximized ? 5 : (this.boardSize === 30 ? 10 : 20) })
 
       // 版本信息和关于作者（非最大化模式显示）
       if (!this.isMaximized) {
