@@ -1,24 +1,24 @@
 /**
  * 音频管理器
- * 负责游戏音效的初始化和播放
+ * 使用 media.createSoundPool 播放短音效
  */
 
 import { media } from '@kit.MediaKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { PieceType } from './GameTypes';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
  * 音频管理器类
  */
 export class AudioManager {
   private static instance: AudioManager | null = null;
-
-  private blackPiecePlayer: media.AVPlayer | null = null;
-  private whitePiecePlayer: media.AVPlayer | null = null;
-  private blackPlayerReady: boolean = false;
-  private whitePlayerReady: boolean = false;
+  private soundPool: media.SoundPool | null = null;
+  private blackSoundId: number = -1;
+  private whiteSoundId: number = -1;
   private soundEnabled: boolean = true;
   private initialized: boolean = false;
+  private context: Context | null = null;
 
   private constructor() {}
 
@@ -29,95 +29,70 @@ export class AudioManager {
     return AudioManager.instance;
   }
 
+  public setContext(context: Context): void {
+    this.context = context;
+  }
+
   public async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
     try {
-      await this.initBlackPlayer();
-      await this.initWhitePlayer();
+      hilog.info(0x0000, 'AudioManager', 'Starting initialization...');
+      
+      // 创建 SoundPool
+      this.soundPool = await media.createSoundPool(2, {
+        usage: 1, // STREAM_USAGE_MEDIA
+        rendererFlags: 0
+      });
+      
+      hilog.info(0x0000, 'AudioManager', 'SoundPool created');
+
+      // 加载音效文件
+      if (this.context) {
+        const blackFd = await this.context.resourceManager.getRawFd('black_piece.mp3');
+        this.blackSoundId = await this.soundPool.load(blackFd.fd, blackFd.offset, blackFd.length);
+        hilog.info(0x0000, 'AudioManager', `Black sound loaded, id: ${this.blackSoundId}`);
+
+        const whiteFd = await this.context.resourceManager.getRawFd('white_piece.mp3');
+        this.whiteSoundId = await this.soundPool.load(whiteFd.fd, whiteFd.offset, whiteFd.length);
+        hilog.info(0x0000, 'AudioManager', `White sound loaded, id: ${this.whiteSoundId}`);
+      } else {
+        hilog.error(0x0000, 'AudioManager', 'Context is null, cannot load sounds');
+      }
+
       this.initialized = true;
-      hilog.info(0x0000, 'AudioManager', 'Audio players initialized');
+      hilog.info(0x0000, 'AudioManager', 'Initialization complete');
     } catch (error) {
-      hilog.error(0x0000, 'AudioManager', `Failed to initialize: ${error}`);
+      const err = error as BusinessError;
+      hilog.error(0x0000, 'AudioManager', `Failed to initialize: ${err.code} - ${err.message}`);
     }
   }
 
-  private async initBlackPlayer(): Promise<void> {
-    this.blackPiecePlayer = await media.createAVPlayer();
-    this.blackPiecePlayer.on('stateChange', (state: string) => {
-      hilog.info(0x0000, 'AudioManager', `Black player state: ${state}`);
-      if (state === 'initialized') {
-        this.blackPiecePlayer?.prepare();
-      } else if (state === 'prepared') {
-        this.blackPlayerReady = true;
-        hilog.info(0x0000, 'AudioManager', 'Black player ready');
-      } else if (state === 'completed') {
-        // 播放完成后重置到开头，准备下次播放
-        this.blackPlayerReady = false;
-        this.blackPiecePlayer?.reset();
-      } else if (state === 'idle') {
-        // reset后重新设置url
-        if (this.blackPiecePlayer) {
-          this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
-        }
-      }
-    });
-    this.blackPiecePlayer.on('error', (err: Error) => {
-      hilog.error(0x0000, 'AudioManager', `Black player error: ${err.message}`);
-    });
-    this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
-  }
-
-  private async initWhitePlayer(): Promise<void> {
-    this.whitePiecePlayer = await media.createAVPlayer();
-    this.whitePiecePlayer.on('stateChange', (state: string) => {
-      hilog.info(0x0000, 'AudioManager', `White player state: ${state}`);
-      if (state === 'initialized') {
-        this.whitePiecePlayer?.prepare();
-      } else if (state === 'prepared') {
-        this.whitePlayerReady = true;
-        hilog.info(0x0000, 'AudioManager', 'White player ready');
-      } else if (state === 'completed') {
-        this.whitePlayerReady = false;
-        this.whitePiecePlayer?.reset();
-      } else if (state === 'idle') {
-        if (this.whitePiecePlayer) {
-          this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
-        }
-      }
-    });
-    this.whitePiecePlayer.on('error', (err: Error) => {
-      hilog.error(0x0000, 'AudioManager', `White player error: ${err.message}`);
-    });
-    this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
-  }
-
   public playPieceSound(pieceType: PieceType): void {
-    hilog.info(0x0000, 'AudioManager', `playPieceSound called, type: ${pieceType}, enabled: ${this.soundEnabled}`);
-    
-    if (!this.soundEnabled) {
-      hilog.info(0x0000, 'AudioManager', 'Sound disabled, skip playing');
+    if (!this.soundEnabled || !this.soundPool) {
+      hilog.info(0x0000, 'AudioManager', `Skip playing: enabled=${this.soundEnabled}, pool=${this.soundPool !== null}`);
       return;
     }
 
     try {
-      if (pieceType === PieceType.BLACK) {
-        hilog.info(0x0000, 'AudioManager', `Black ready: ${this.blackPlayerReady}, player: ${this.blackPiecePlayer !== null}`);
-        if (this.blackPiecePlayer && this.blackPlayerReady) {
-          this.blackPiecePlayer.play();
-          hilog.info(0x0000, 'AudioManager', 'Playing black piece sound');
-        }
-      } else if (pieceType === PieceType.WHITE) {
-        hilog.info(0x0000, 'AudioManager', `White ready: ${this.whitePlayerReady}, player: ${this.whitePiecePlayer !== null}`);
-        if (this.whitePiecePlayer && this.whitePlayerReady) {
-          this.whitePiecePlayer.play();
-          hilog.info(0x0000, 'AudioManager', 'Playing white piece sound');
-        }
+      const soundId = pieceType === PieceType.BLACK ? this.blackSoundId : this.whiteSoundId;
+      if (soundId >= 0) {
+        this.soundPool.play(soundId, {
+          loop: 0,
+          rate: 1.0,
+          leftVolume: 1.0,
+          rightVolume: 1.0,
+          priority: 0
+        });
+        hilog.info(0x0000, 'AudioManager', `Playing sound id: ${soundId}`);
+      } else {
+        hilog.warn(0x0000, 'AudioManager', `Sound not loaded: ${soundId}`);
       }
     } catch (error) {
-      hilog.error(0x0000, 'AudioManager', `Failed to play sound: ${error}`);
+      const err = error as BusinessError;
+      hilog.error(0x0000, 'AudioManager', `Failed to play: ${err.code} - ${err.message}`);
     }
   }
 
@@ -132,18 +107,14 @@ export class AudioManager {
 
   public release(): void {
     try {
-      if (this.blackPiecePlayer) {
-        this.blackPiecePlayer.release();
-        this.blackPiecePlayer = null;
-      }
-      if (this.whitePiecePlayer) {
-        this.whitePiecePlayer.release();
-        this.whitePiecePlayer = null;
+      if (this.soundPool) {
+        this.soundPool.release();
+        this.soundPool = null;
       }
       this.initialized = false;
-      this.blackPlayerReady = false;
-      this.whitePlayerReady = false;
-      hilog.info(0x0000, 'AudioManager', 'Audio players released');
+      this.blackSoundId = -1;
+      this.whiteSoundId = -1;
+      hilog.info(0x0000, 'AudioManager', 'Released');
     } catch (error) {
       hilog.error(0x0000, 'AudioManager', `Failed to release: ${error}`);
     }

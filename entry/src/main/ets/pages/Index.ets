@@ -44,6 +44,9 @@ struct Index {
 
   aboutToAppear(): void {
     this.syncState();
+    // 获取 Context 并初始化音频管理器
+    const context = getContext(this);
+    this.audioManager.setContext(context);
     this.audioManager.initialize();
   }
 
@@ -402,17 +405,8 @@ struct Index {
     .height('100%')
     .clip(true)
     .gesture(
-      GestureGroup(GestureMode.Parallel,
-        PinchGesture({ fingers: 2 })
-          .onActionStart(() => { this.pinchValue = this.scaleValue; })
-          .onActionUpdate((event: GestureEvent) => {
-            if (event?.scale) {
-              const config = this.boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
-              let newScale = this.pinchValue * event.scale;
-              this.scaleValue = Math.max(config.min, Math.min(config.max, newScale));
-            }
-          })
-          .onActionEnd(() => { this.pinchValue = this.scaleValue; }),
+      GestureGroup(GestureMode.Exclusive,
+        // 三指移动手势（优先级更高，放在前面）
         PanGesture({ fingers: 3, direction: PanDirection.All })
           .onActionStart(() => {
             this.panOffsetX = this.offsetX;
@@ -427,7 +421,18 @@ struct Index {
           .onActionEnd(() => {
             this.panOffsetX = this.offsetX;
             this.panOffsetY = this.offsetY;
+          }),
+        // 双指缩放手势
+        PinchGesture({ fingers: 2 })
+          .onActionStart(() => { this.pinchValue = this.scaleValue; })
+          .onActionUpdate((event: GestureEvent) => {
+            if (event?.scale) {
+              const config = this.boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
+              let newScale = this.pinchValue * event.scale;
+              this.scaleValue = Math.max(config.min, Math.min(config.max, newScale));
+            }
           })
+          .onActionEnd(() => { this.pinchValue = this.scaleValue; })
       )
     )
     .layoutWeight(1)
