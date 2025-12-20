@@ -325,7 +325,7 @@ struct Index {
             .borderRadius(16)
             .onClick(() => this.toggleMaximize())
 
-          Button(this.soundEnabled ? '🔊 声音' : '🔇 静音')
+          Button(this.soundEnabled ? '声音 开' : '声音 关')
             .fontSize(14)
             .fontColor($r('app.color.button_text'))
             .backgroundColor(this.soundEnabled ? '#4CAF50' : '#9E9E9E')
@@ -525,8 +525,8 @@ struct Index {
           .width(this.isMaximized ? 80 : 100)
           .height(this.isMaximized ? 36 : 44)
           .borderRadius(this.isMaximized ? 18 : 22)
-          .enabled(this.totalMoves > 0)
-          .opacity(this.totalMoves > 0 ? 1 : 0.5)
+          .enabled(this.totalMoves > 0 && this.gameStatus === GameStatus.PLAYING)
+          .opacity(this.totalMoves > 0 && this.gameStatus === GameStatus.PLAYING ? 1 : 0.5)
           .onClick(() => this.handleUndo())
 
         Button('重新开始')
