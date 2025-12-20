@@ -155,7 +155,7 @@ struct Index {
 
     if (this.isMaximized) {
       const config = this.boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
-      this.scaleValue = config.default;
+      this.scaleValue = config.defaultValue;
       this.minScale = config.min;
       this.maxScale = config.max;
       this.pinchValue = this.scaleValue;
