@@ -190,10 +190,10 @@ struct Index {
    */
   private generateConfetti(): void {
     const colors: string[] = [
-      '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-      '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', 
-      '#85C1E9', '#FF69B4', '#00CED1', '#FF4500', '#32CD32',
-      '#E74C3C', '#9B59B6', '#3498DB', '#1ABC9C', '#F39C12'
+      '#FFFF00', '#FF0000', '#00FF00', '#00FFFF', '#FF00FF',
+      '#FFA500', '#FFEB3B', '#4CAF50', '#2196F3', '#E91E63',
+      '#FF5722', '#8BC34A', '#03A9F4', '#9C27B0', '#FFCC00',
+      '#00FF7F', '#FF1493', '#7FFF00', '#FF6347', '#40E0D0'
     ];
     const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
     const items: ConfettiItem[] = [];
@@ -600,19 +600,19 @@ struct Index {
 
             // 获胜者文本
             Text(this.winnerText)
-              .fontSize(34)
+              .fontSize(36)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#FFFFFF')
+              .fontColor('#00FFFF')
               .margin({ bottom: 16 })
-              .textShadow({ radius: 15, color: '#000000', offsetX: 2, offsetY: 2 })
+              .textShadow({ radius: 20, color: '#00CED1', offsetX: 0, offsetY: 0 })
 
             // 夸奖语
             Text(this.celebrationText)
               .fontSize(48)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#FFD700')
+              .fontColor('#FFFF00')
               .margin({ bottom: 24 })
-              .textShadow({ radius: 20, color: '#FF8C00', offsetX: 0, offsetY: 0 })
+              .textShadow({ radius: 25, color: '#FFA500', offsetX: 0, offsetY: 0 })
 
             // 装饰分割线
             Row() {
