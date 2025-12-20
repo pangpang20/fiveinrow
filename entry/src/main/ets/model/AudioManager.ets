@@ -9,7 +9,6 @@ import { PieceType } from './GameTypes';
 
 /**
  * 音频管理器类
- * 单例模式，管理游戏中的所有音效
  */
 export class AudioManager {
   private static instance: AudioManager | null = null;
@@ -23,9 +22,6 @@ export class AudioManager {
 
   private constructor() {}
 
-  /**
-   * 获取单例实例
-   */
   public static getInstance(): AudioManager {
     if (!AudioManager.instance) {
       AudioManager.instance = new AudioManager();
@@ -33,91 +29,107 @@ export class AudioManager {
     return AudioManager.instance;
   }
 
-  /**
-   * 初始化音频播放器
-   */
   public async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
     try {
-      // 创建黑子音效播放器
-      this.blackPiecePlayer = await media.createAVPlayer();
-      this.blackPiecePlayer.on('stateChange', (state: string) => {
-        hilog.info(0x0000, 'AudioManager', `Black player state: ${state}`);
-        if (state === 'initialized') {
-          this.blackPiecePlayer?.prepare();
-        } else if (state === 'prepared') {
-          this.blackPlayerReady = true;
-        } else if (state === 'completed' || state === 'stopped') {
-          this.blackPiecePlayer?.prepare();
-        }
-      });
-      this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
-
-      // 创建白子音效播放器
-      this.whitePiecePlayer = await media.createAVPlayer();
-      this.whitePiecePlayer.on('stateChange', (state: string) => {
-        hilog.info(0x0000, 'AudioManager', `White player state: ${state}`);
-        if (state === 'initialized') {
-          this.whitePiecePlayer?.prepare();
-        } else if (state === 'prepared') {
-          this.whitePlayerReady = true;
-        } else if (state === 'completed' || state === 'stopped') {
-          this.whitePiecePlayer?.prepare();
-        }
-      });
-      this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
-
+      await this.initBlackPlayer();
+      await this.initWhitePlayer();
       this.initialized = true;
       hilog.info(0x0000, 'AudioManager', 'Audio players initialized');
     } catch (error) {
-      hilog.error(0x0000, 'AudioManager', `Failed to initialize audio players: ${error}`);
+      hilog.error(0x0000, 'AudioManager', `Failed to initialize: ${error}`);
     }
   }
 
-  /**
-   * 播放落子音效
-   * @param pieceType 棋子类型
-   */
+  private async initBlackPlayer(): Promise<void> {
+    this.blackPiecePlayer = await media.createAVPlayer();
+    this.blackPiecePlayer.on('stateChange', (state: string) => {
+      hilog.info(0x0000, 'AudioManager', `Black player state: ${state}`);
+      if (state === 'initialized') {
+        this.blackPiecePlayer?.prepare();
+      } else if (state === 'prepared') {
+        this.blackPlayerReady = true;
+        hilog.info(0x0000, 'AudioManager', 'Black player ready');
+      } else if (state === 'completed') {
+        // 播放完成后重置到开头，准备下次播放
+        this.blackPlayerReady = false;
+        this.blackPiecePlayer?.reset();
+      } else if (state === 'idle') {
+        // reset后重新设置url
+        if (this.blackPiecePlayer) {
+          this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
+        }
+      }
+    });
+    this.blackPiecePlayer.on('error', (err: Error) => {
+      hilog.error(0x0000, 'AudioManager', `Black player error: ${err.message}`);
+    });
+    this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
+  }
+
+  private async initWhitePlayer(): Promise<void> {
+    this.whitePiecePlayer = await media.createAVPlayer();
+    this.whitePiecePlayer.on('stateChange', (state: string) => {
+      hilog.info(0x0000, 'AudioManager', `White player state: ${state}`);
+      if (state === 'initialized') {
+        this.whitePiecePlayer?.prepare();
+      } else if (state === 'prepared') {
+        this.whitePlayerReady = true;
+        hilog.info(0x0000, 'AudioManager', 'White player ready');
+      } else if (state === 'completed') {
+        this.whitePlayerReady = false;
+        this.whitePiecePlayer?.reset();
+      } else if (state === 'idle') {
+        if (this.whitePiecePlayer) {
+          this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
+        }
+      }
+    });
+    this.whitePiecePlayer.on('error', (err: Error) => {
+      hilog.error(0x0000, 'AudioManager', `White player error: ${err.message}`);
+    });
+    this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
+  }
+
   public playPieceSound(pieceType: PieceType): void {
+    hilog.info(0x0000, 'AudioManager', `playPieceSound called, type: ${pieceType}, enabled: ${this.soundEnabled}`);
+    
     if (!this.soundEnabled) {
+      hilog.info(0x0000, 'AudioManager', 'Sound disabled, skip playing');
       return;
     }
 
     try {
-      if (pieceType === PieceType.BLACK && this.blackPiecePlayer && this.blackPlayerReady) {
-        this.blackPiecePlayer.play();
-        hilog.info(0x0000, 'AudioManager', 'Playing black piece sound');
-      } else if (pieceType === PieceType.WHITE && this.whitePiecePlayer && this.whitePlayerReady) {
-        this.whitePiecePlayer.play();
-        hilog.info(0x0000, 'AudioManager', 'Playing white piece sound');
+      if (pieceType === PieceType.BLACK) {
+        hilog.info(0x0000, 'AudioManager', `Black ready: ${this.blackPlayerReady}, player: ${this.blackPiecePlayer !== null}`);
+        if (this.blackPiecePlayer && this.blackPlayerReady) {
+          this.blackPiecePlayer.play();
+          hilog.info(0x0000, 'AudioManager', 'Playing black piece sound');
+        }
+      } else if (pieceType === PieceType.WHITE) {
+        hilog.info(0x0000, 'AudioManager', `White ready: ${this.whitePlayerReady}, player: ${this.whitePiecePlayer !== null}`);
+        if (this.whitePiecePlayer && this.whitePlayerReady) {
+          this.whitePiecePlayer.play();
+          hilog.info(0x0000, 'AudioManager', 'Playing white piece sound');
+        }
       }
     } catch (error) {
       hilog.error(0x0000, 'AudioManager', `Failed to play sound: ${error}`);
     }
   }
 
-  /**
-   * 设置声音开关
-   * @param enabled 是否启用声音
-   */
   public setSoundEnabled(enabled: boolean): void {
     this.soundEnabled = enabled;
     hilog.info(0x0000, 'AudioManager', `Sound enabled: ${enabled}`);
   }
 
-  /**
-   * 获取声音开关状态
-   */
   public isSoundEnabled(): boolean {
     return this.soundEnabled;
   }
 
-  /**
-   * 释放资源
-   */
   public release(): void {
     try {
       if (this.blackPiecePlayer) {
@@ -129,9 +141,11 @@ export class AudioManager {
         this.whitePiecePlayer = null;
       }
       this.initialized = false;
+      this.blackPlayerReady = false;
+      this.whitePlayerReady = false;
       hilog.info(0x0000, 'AudioManager', 'Audio players released');
     } catch (error) {
-      hilog.error(0x0000, 'AudioManager', `Failed to release audio players: ${error}`);
+      hilog.error(0x0000, 'AudioManager', `Failed to release: ${error}`);
     }
   }
 }

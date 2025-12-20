@@ -182,7 +182,7 @@ struct Index {
     Column() {
       // 标题区域（非最大化模式）
       if (!this.isMaximized) {
-        Text('FiveInRow 五子棋')
+        Text('FiveInRow互动五子棋')
           .fontSize(28)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.primary_text'))
