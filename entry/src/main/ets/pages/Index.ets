@@ -101,6 +101,10 @@ struct Index {
     }
   }
 
+  // 播放器状态标记
+  private blackPlayerReady: boolean = false;
+  private whitePlayerReady: boolean = false;
+
   /**
    * 初始化音频播放器
    */
@@ -108,10 +112,32 @@ struct Index {
     try {
       // 创建黑子音效播放器
       this.blackPiecePlayer = await media.createAVPlayer();
+      this.blackPiecePlayer.on('stateChange', (state: string) => {
+        hilog.info(0x0000, 'GamePlay', `Black player state: ${state}`);
+        if (state === 'initialized') {
+          this.blackPiecePlayer?.prepare();
+        } else if (state === 'prepared') {
+          this.blackPlayerReady = true;
+        } else if (state === 'completed' || state === 'stopped') {
+          // 播放完成后重新准备
+          this.blackPiecePlayer?.prepare();
+        }
+      });
       this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
       
       // 创建白子音效播放器
       this.whitePiecePlayer = await media.createAVPlayer();
+      this.whitePiecePlayer.on('stateChange', (state: string) => {
+        hilog.info(0x0000, 'GamePlay', `White player state: ${state}`);
+        if (state === 'initialized') {
+          this.whitePiecePlayer?.prepare();
+        } else if (state === 'prepared') {
+          this.whitePlayerReady = true;
+        } else if (state === 'completed' || state === 'stopped') {
+          // 播放完成后重新准备
+          this.whitePiecePlayer?.prepare();
+        }
+      });
       this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
       
       hilog.info(0x0000, 'GamePlay', 'Audio players initialized');
@@ -129,14 +155,10 @@ struct Index {
     }
     
     try {
-      if (pieceType === PieceType.BLACK && this.blackPiecePlayer) {
-        // 重置并播放黑子音效
-        this.blackPiecePlayer.seek(0);
+      if (pieceType === PieceType.BLACK && this.blackPiecePlayer && this.blackPlayerReady) {
         this.blackPiecePlayer.play();
         hilog.info(0x0000, 'GamePlay', 'Playing black piece sound');
-      } else if (pieceType === PieceType.WHITE && this.whitePiecePlayer) {
-        // 重置并播放白子音效
-        this.whitePiecePlayer.seek(0);
+      } else if (pieceType === PieceType.WHITE && this.whitePiecePlayer && this.whitePlayerReady) {
         this.whitePiecePlayer.play();
         hilog.info(0x0000, 'GamePlay', 'Playing white piece sound');
       }
@@ -678,18 +700,12 @@ struct Index {
       // 棋子
       if (this.boardData.length > row && this.boardData[row].length > col) {
         if (this.boardData[row][col] !== PieceType.EMPTY) {
-          // 棋子本体
+          // 棋子本体 - 使用纯圆形，无阴影避免方形背景
           Circle({ width: this.pieceSize, height: this.pieceSize })
             .fill(this.boardData[row][col] === PieceType.BLACK ?
               $r('app.color.black_piece') : $r('app.color.white_piece'))
-            .stroke(this.boardData[row][col] === PieceType.BLACK ? '#000000' : '#CCCCCC')
-            .strokeWidth(0.5)
-            .shadow({
-              radius: 2,
-              color: '#44000000',
-              offsetX: 1,
-              offsetY: 1
-            })
+            .stroke(this.boardData[row][col] === PieceType.BLACK ? '#333333' : '#AAAAAA')
+            .strokeWidth(1)
 
           // 最后落子标记
           if (row === this.lastMoveRow && col === this.lastMoveCol) {
