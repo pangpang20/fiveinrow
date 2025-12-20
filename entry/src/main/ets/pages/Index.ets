@@ -344,76 +344,68 @@ struct Index {
       // 棋盘区域
       if (this.isMaximized || this.boardSize === 30) {
         // 最大化模式或30×30棋盘：支持缩放和拖拽
-        Scroll() {
-          Scroll() {
-            Stack() {
-              // 棋盘背景
-              Column() {
-                // 绘制棋盘网格
-                ForEach(this.getRowIndices(), (row: number) => {
-                  Row() {
-                    ForEach(this.getColIndices(), (col: number) => {
-                      this.BoardCell(row, col)
-                    })
-                  }
+        Stack() {
+          Column() {
+            // 绘制棋盘网格
+            ForEach(this.getRowIndices(), (row: number) => {
+              Row() {
+                ForEach(this.getColIndices(), (col: number) => {
+                  this.BoardCell(row, col)
                 })
               }
-              .backgroundColor($r('app.color.board_background'))
-              .padding(this.boardPadding)
-              .borderRadius(8)
-              .shadow({
-                radius: 10,
-                color: '#33000000',
-                offsetX: 2,
-                offsetY: 4
-              })
-              .scale({ x: this.scaleValue, y: this.scaleValue })
-              .translate({ x: this.offsetX, y: this.offsetY })
-            }
-            .gesture(
-              GestureGroup(GestureMode.Parallel,
-                // 双指缩放手势（30×30棋盘支持缩放，15×15最大化模式固定缩放）
-                PinchGesture({ fingers: 2 })
-                  .onActionStart((event: GestureEvent) => {
-                    this.pinchValue = this.scaleValue;
-                  })
-                  .onActionUpdate((event: GestureEvent) => {
-                    // 仅30×30棋盘支持动态缩放
-                    if (this.boardSize === 30 && event && event.scale) {
-                      let newScale = this.pinchValue * event.scale;
-                      newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
-                      this.scaleValue = newScale;
-                    }
-                  })
-                  .onActionEnd(() => {
-                    this.pinchValue = this.scaleValue;
-                  }),
-                // 双指拖动手势
-                PanGesture({ fingers: 2, direction: PanDirection.All })
-                  .onActionStart(() => {
-                    this.panOffsetX = this.offsetX;
-                    this.panOffsetY = this.offsetY;
-                  })
-                  .onActionUpdate((event: GestureEvent) => {
-                    if (event) {
-                      this.offsetX = this.panOffsetX + (event.offsetX || 0);
-                      this.offsetY = this.panOffsetY + (event.offsetY || 0);
-                    }
-                  })
-                  .onActionEnd(() => {
-                    this.panOffsetX = this.offsetX;
-                    this.panOffsetY = this.offsetY;
-                  })
-              )
-            )
+            })
           }
-          .scrollable(ScrollDirection.Horizontal)
-          .scrollBar(BarState.Off)
-          .width('100%')
+          .backgroundColor($r('app.color.board_background'))
+          .padding(this.boardPadding)
+          .borderRadius(8)
+          .shadow({
+            radius: 10,
+            color: '#33000000',
+            offsetX: 2,
+            offsetY: 4
+          })
+          .scale({ x: this.scaleValue, y: this.scaleValue })
+          .translate({ x: this.offsetX, y: this.offsetY })
         }
-        .scrollable(ScrollDirection.Vertical)
-        .scrollBar(BarState.Off)
         .width('100%')
+        .height('100%')
+        .clip(true)
+        .gesture(
+          GestureGroup(GestureMode.Parallel,
+            // 双指缩放手势（30×30棋盘支持缩放，15×15最大化模式固定缩放）
+            PinchGesture({ fingers: 2 })
+              .onActionStart((event: GestureEvent) => {
+                this.pinchValue = this.scaleValue;
+              })
+              .onActionUpdate((event: GestureEvent) => {
+                // 仅30×30棋盘支持动态缩放
+                if (this.boardSize === 30 && event && event.scale) {
+                  let newScale = this.pinchValue * event.scale;
+                  newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+                  this.scaleValue = newScale;
+                }
+              })
+              .onActionEnd(() => {
+                this.pinchValue = this.scaleValue;
+              }),
+            // 双指拖动手势
+            PanGesture({ fingers: 2, direction: PanDirection.All })
+              .onActionStart(() => {
+                this.panOffsetX = this.offsetX;
+                this.panOffsetY = this.offsetY;
+              })
+              .onActionUpdate((event: GestureEvent) => {
+                if (event) {
+                  this.offsetX = this.panOffsetX + (event.offsetX || 0);
+                  this.offsetY = this.panOffsetY + (event.offsetY || 0);
+                }
+              })
+              .onActionEnd(() => {
+                this.panOffsetX = this.offsetX;
+                this.panOffsetY = this.offsetY;
+              })
+          )
+        )
         .layoutWeight(1)
         .margin({ bottom: this.isMaximized ? 2 : 10 })
       } else {
