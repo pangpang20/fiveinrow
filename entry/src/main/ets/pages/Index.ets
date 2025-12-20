@@ -616,34 +616,28 @@ struct Index {
 
             // 装饰分割线
             Row() {
-              Text('✦').fontSize(16).fontColor('#FFD700')
-              Row().width(80).height(2).backgroundColor('#FFD700').margin({ left: 8, right: 8 })
-              Text('✦').fontSize(16).fontColor('#FFD700')
+              Text('✦').fontSize(16).fontColor('#FFFF00')
+              Row().width(80).height(2).backgroundColor('#FFFF00').margin({ left: 8, right: 8 })
+              Text('✦').fontSize(16).fontColor('#FFFF00')
             }
-            .margin({ bottom: 28 })
+            .margin({ bottom: 20 })
 
-            // 再来一局按钮
-            Button('🎮 再来一局')
-              .fontSize(20)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#FFFFFF')
-              .backgroundColor('#4CAF50')
-              .width(200)
-              .height(60)
-              .borderRadius(30)
-              .shadow({ radius: 20, color: '#2E7D32', offsetX: 0, offsetY: 6 })
-              .onClick(() => {
-                this.handleRestart();
-              })
+            // 提示文字
+            Text('点击任意位置关闭')
+              .fontSize(14)
+              .fontColor('#AAAAAA')
           }
           .width('85%')
-          .padding({ top: 30, bottom: 40, left: 30, right: 30 })
+          .padding({ top: 30, bottom: 30, left: 30, right: 30 })
           .backgroundColor('#AA2D1B4E')
           .borderRadius(28)
           .border({ width: 2, color: '#FFFF00' })
           .shadow({ radius: 40, color: '#000000', offsetX: 0, offsetY: 15 })
           .position({ x: '7.5%', y: '25%' })
           .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.closeCelebration();
+          })
         }
         .width('100%')
         .height('100%')
