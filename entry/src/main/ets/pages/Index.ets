@@ -639,15 +639,15 @@ struct Index {
           }
           .width('85%')
           .padding({ top: 30, bottom: 40, left: 30, right: 30 })
-          .backgroundColor('#DD1A1A2E')
+          .backgroundColor('#AA2D1B4E')
           .borderRadius(28)
-          .border({ width: 2, color: '#FFD700' })
+          .border({ width: 2, color: '#FFFF00' })
           .shadow({ radius: 40, color: '#000000', offsetX: 0, offsetY: 15 })
           .position({ x: '7.5%', y: '25%' })
         }
         .width('100%')
         .height('100%')
-        .backgroundColor('#CC000000')
+        .backgroundColor('#88000000')
         .onClick(() => this.closeCelebration())
       }
     }
