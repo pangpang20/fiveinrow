@@ -30,18 +30,21 @@ struct Index {
   @State boardSize: number = 15;
   @State cellSize: number = 22;
   @State pieceSize: number = 20;
+  @State isMaximized: boolean = false; // 最大化模式
 
 
   
-  // 缩放相关状态（仅30×30棋盘使用）
+  // 缩放相关状态（最大化模式使用）
   @State scaleValue: number = 1; // 当前缩放比例
   @State pinchValue: number = 1; // 捏合手势的缩放值
   @State minScale: number = 0.5; // 最小缩放
   @State maxScale: number = 3.0; // 最大缩放
   private baseCellSize30: number = 12; // 30路棋盘基础格子大小
   private basePieceSize30: number = 10; // 30路棋盘基础棋子大小
+  private defaultScale15: number = 1.5; // 15路最大化默认缩放
+  private defaultScale30: number = 2.0; // 30路最大化默认缩放
   
-  // 拖动相关状态（仅30×30棋盘缩放后使用）
+  // 拖动相关状态（最大化模式使用）
   @State offsetX: number = 0; // 水平偏移
   @State offsetY: number = 0; // 垂直偏移
   private panOffsetX: number = 0; // 拖动手势的水平偏移
@@ -176,6 +179,7 @@ struct Index {
     
     this.selectedBoardSize = size;
     this.boardSize = size;
+    this.isMaximized = false; // 重置最大化状态
     hilog.info(0x0000, 'GamePlay', `Board size changed to: ${size}`);
 
     // 根据棋盘尺寸调整格子和棋子大小
@@ -210,73 +214,127 @@ struct Index {
 
   build() {
     Column() {
-      // 标题区域
-      Text('FiveInRow 五子棋')
-        .fontSize(28)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.primary_text'))
-        .margin({ top: 20, bottom: 10 })
+      // 标题区域（非最大化模式显示）
+      if (!this.isMaximized) {
+        Text('FiveInRow 五子棋')
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.primary_text'))
+          .margin({ top: 20, bottom: 10 })
+      }
 
 
 
-      // 棋盘尺寸选择区域
-      Row() {
-        Text('棋盘尺寸:')
+      // 棋盘尺寸选择区域（非最大化模式显示）
+      if (!this.isMaximized) {
+        Row() {
+          Text('棋盘尺寸:')
+            .fontSize(14)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ right: 10 })
+
+          Button('15×15')
+            .fontSize(14)
+            .fontColor(this.selectedBoardSize === 15 ? $r('app.color.button_text') : $r('app.color.primary_text'))
+            .backgroundColor(this.selectedBoardSize === 15 ? $r('app.color.button_primary') : '#E0E0E0')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .onClick(() => this.switchBoardSize(15))
+
+          Button('30×30')
+            .fontSize(14)
+            .fontColor(this.selectedBoardSize === 30 ? $r('app.color.button_text') : $r('app.color.primary_text'))
+            .backgroundColor(this.selectedBoardSize === 30 ? $r('app.color.button_primary') : '#E0E0E0')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .margin({ left: 10 })
+            .onClick(() => this.switchBoardSize(30))
+        }
+        .margin({ bottom: 5 })
+
+        // 最大化按钮
+        Button('最大化')
+          .fontSize(14)
+          .fontColor($r('app.color.button_text'))
+          .backgroundColor('#FF6B35')
+          .width(100)
+          .height(32)
+          .borderRadius(16)
+          .margin({ bottom: 10 })
+          .onClick(() => this.toggleMaximize())
+      }
+
+
+
+      // 状态显示区域（非最大化模式显示完整信息）
+      if (!this.isMaximized) {
+        Row() {
+          // 当前回合指示器
+          if (this.gameStatus === GameStatus.PLAYING) {
+            Circle({ width: 24, height: 24 })
+              .fill(this.currentPlayer === PieceType.BLACK ?
+                $r('app.color.black_turn_indicator') : $r('app.color.white_turn_indicator'))
+              .stroke($r('app.color.board_line'))
+              .strokeWidth(1)
+              .margin({ right: 8 })
+          }
+
+          Text(this.getStatusText())
+            .fontSize(20)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.gameStatus !== GameStatus.PLAYING ?
+              $r('app.color.win_color') : $r('app.color.primary_text'))
+        }
+        .margin({ bottom: 10 })
+
+        // 步数显示
+        Text(`总步数: ${this.totalMoves}`)
           .fontSize(14)
           .fontColor($r('app.color.secondary_text'))
-          .margin({ right: 10 })
-
-        Button('15×15')
-          .fontSize(14)
-          .fontColor(this.selectedBoardSize === 15 ? $r('app.color.button_text') : $r('app.color.primary_text'))
-          .backgroundColor(this.selectedBoardSize === 15 ? $r('app.color.button_primary') : '#E0E0E0')
-          .width(80)
-          .height(32)
-          .borderRadius(16)
-          .onClick(() => this.switchBoardSize(15))
-
-        Button('30×30')
-          .fontSize(14)
-          .fontColor(this.selectedBoardSize === 30 ? $r('app.color.button_text') : $r('app.color.primary_text'))
-          .backgroundColor(this.selectedBoardSize === 30 ? $r('app.color.button_primary') : '#E0E0E0')
-          .width(80)
-          .height(32)
-          .borderRadius(16)
-          .margin({ left: 10 })
-          .onClick(() => this.switchBoardSize(30))
+          .margin({ bottom: this.boardSize === 30 ? 5 : 15 })
       }
-      .margin({ bottom: 10 })
-
-
-
-      // 状态显示区域
-      Row() {
-        // 当前回合指示器
-        if (this.gameStatus === GameStatus.PLAYING) {
-          Circle({ width: 24, height: 24 })
-            .fill(this.currentPlayer === PieceType.BLACK ?
-              $r('app.color.black_turn_indicator') : $r('app.color.white_turn_indicator'))
-            .stroke($r('app.color.board_line'))
-            .strokeWidth(1)
-            .margin({ right: 8 })
-        }
-
-        Text(this.getStatusText())
-          .fontSize(20)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.gameStatus !== GameStatus.PLAYING ?
-            $r('app.color.win_color') : $r('app.color.primary_text'))
-      }
-      .margin({ bottom: 10 })
-
-      // 步数显示
-      Text(`总步数: ${this.totalMoves}`)
-        .fontSize(14)
-        .fontColor($r('app.color.secondary_text'))
-        .margin({ bottom: this.boardSize === 30 ? 5 : 15 })
       
-      // 30×30棋盘缩放提示
-      if (this.boardSize === 30) {
+      // 最大化模式：简化状态显示
+      if (this.isMaximized) {
+        Row() {
+          // 缩小按钮
+          Button('退出最大化')
+            .fontSize(12)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor('#FF6B35')
+            .height(28)
+            .borderRadius(14)
+            .margin({ right: 15 })
+            .onClick(() => this.toggleMaximize())
+
+          // 当前回合指示器
+          if (this.gameStatus === GameStatus.PLAYING) {
+            Circle({ width: 20, height: 20 })
+              .fill(this.currentPlayer === PieceType.BLACK ?
+                $r('app.color.black_turn_indicator') : $r('app.color.white_turn_indicator'))
+              .stroke($r('app.color.board_line'))
+              .strokeWidth(1)
+              .margin({ right: 6 })
+          }
+
+          Text(this.getStatusText())
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.gameStatus !== GameStatus.PLAYING ?
+              $r('app.color.win_color') : $r('app.color.primary_text'))
+
+          Text(` | ${(this.scaleValue * 100).toFixed(0)}%`)
+            .fontSize(12)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ left: 10 })
+        }
+        .margin({ top: 5, bottom: 5 })
+      }
+      
+      // 缩放提示（非最大化的30×30棋盘）
+      if (!this.isMaximized && this.boardSize === 30) {
         Text(`双指缩放: ${(this.scaleValue * 100).toFixed(0)}% | 支持双指拖拽移动`)
           .fontSize(12)
           .fontColor($r('app.color.secondary_text'))
@@ -284,8 +342,8 @@ struct Index {
       }
 
       // 棋盘区域
-      if (this.boardSize === 30) {
-        // 30×30棋盘：支持缩放和滚动
+      if (this.isMaximized || this.boardSize === 30) {
+        // 最大化模式或30×30棋盘：支持缩放和拖拽
         Scroll() {
           Scroll() {
             Stack() {
@@ -313,16 +371,16 @@ struct Index {
               .translate({ x: this.offsetX, y: this.offsetY })
             }
             .gesture(
-              // 双指缩放手势
               GestureGroup(GestureMode.Parallel,
+                // 双指缩放手势（30×30棋盘支持缩放，15×15最大化模式固定缩放）
                 PinchGesture({ fingers: 2 })
                   .onActionStart((event: GestureEvent) => {
                     this.pinchValue = this.scaleValue;
                   })
                   .onActionUpdate((event: GestureEvent) => {
-                    if (event && event.scale) {
+                    // 仅30×30棋盘支持动态缩放
+                    if (this.boardSize === 30 && event && event.scale) {
                       let newScale = this.pinchValue * event.scale;
-                      // 限制缩放范围
                       newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
                       this.scaleValue = newScale;
                     }
@@ -350,16 +408,16 @@ struct Index {
             )
           }
           .scrollable(ScrollDirection.Horizontal)
-          .scrollBar(BarState.Auto)
+          .scrollBar(BarState.Off)
           .width('100%')
         }
         .scrollable(ScrollDirection.Vertical)
-        .scrollBar(BarState.Auto)
+        .scrollBar(BarState.Off)
         .width('100%')
         .layoutWeight(1)
-        .margin({ bottom: 15 })
+        .margin({ bottom: 10 })
       } else {
-        // 15×15棋盘：保持原样
+        // 15×15棋盘非最大化：保持原样
         Stack() {
           // 棋盘背景
           Column() {
@@ -388,53 +446,89 @@ struct Index {
       // 操作按钮区域
       Row() {
         Button('悔棋')
-          .fontSize(16)
+          .fontSize(this.isMaximized ? 14 : 16)
           .fontColor($r('app.color.button_text'))
           .backgroundColor($r('app.color.button_secondary'))
-          .width(100)
-          .height(44)
-          .borderRadius(22)
+          .width(this.isMaximized ? 80 : 100)
+          .height(this.isMaximized ? 36 : 44)
+          .borderRadius(this.isMaximized ? 18 : 22)
           .enabled(this.totalMoves > 0)
           .opacity(this.totalMoves > 0 ? 1 : 0.5)
           .onClick(() => this.handleUndo())
 
         Button('重新开始')
-          .fontSize(16)
+          .fontSize(this.isMaximized ? 14 : 16)
           .fontColor($r('app.color.button_text'))
           .backgroundColor($r('app.color.button_primary'))
-          .width(120)
-          .height(44)
-          .borderRadius(22)
+          .width(this.isMaximized ? 100 : 120)
+          .height(this.isMaximized ? 36 : 44)
+          .borderRadius(this.isMaximized ? 18 : 22)
           .margin({ left: 20 })
           .enabled(this.totalMoves > 0)
           .opacity(this.totalMoves > 0 ? 1 : 0.5)
           .onClick(() => this.handleRestart())
       }
-      .margin({ bottom: this.boardSize === 30 ? 10 : 20 })
+      .margin({ bottom: this.isMaximized ? 10 : (this.boardSize === 30 ? 10 : 20) })
 
-      // 版本信息和关于作者
-      Column() {
-        Text(`v${this.appVersion}`)
-          .fontSize(12)
-          .fontColor($r('app.color.secondary_text'))
-          .margin({ bottom: 4 })
+      // 版本信息和关于作者（非最大化模式显示）
+      if (!this.isMaximized) {
+        Column() {
+          Text(`v${this.appVersion}`)
+            .fontSize(12)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ bottom: 4 })
 
-        Text(`作者: ${this.author}`)
-          .fontSize(11)
-          .fontColor($r('app.color.secondary_text'))
-          .margin({ bottom: 2 })
+          Text(`作者: ${this.author}`)
+            .fontSize(11)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ bottom: 2 })
 
-        Text(this.authorEmail)
-          .fontSize(10)
-          .fontColor($r('app.color.secondary_text'))
+          Text(this.authorEmail)
+            .fontSize(10)
+            .fontColor($r('app.color.secondary_text'))
+        }
+        .margin({ bottom: this.boardSize === 30 ? 10 : 15 })
       }
-      .margin({ bottom: this.boardSize === 30 ? 10 : 15 })
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     .justifyContent(FlexAlign.Start)
     .alignItems(HorizontalAlign.Center)
+  }
+
+  /**
+   * 切换最大化模式
+   */
+  private toggleMaximize(): void {
+    this.isMaximized = !this.isMaximized;
+    hilog.info(0x0000, 'GamePlay', `Maximize mode: ${this.isMaximized}`);
+
+    if (this.isMaximized) {
+      // 进入最大化模式，设置默认缩放
+      if (this.boardSize === 15) {
+        this.scaleValue = this.defaultScale15; // 15×15 放大150%
+      } else {
+        this.scaleValue = this.defaultScale30; // 30×30 放大200%
+      }
+      this.pinchValue = this.scaleValue;
+      this.offsetX = 0;
+      this.offsetY = 0;
+      this.panOffsetX = 0;
+      this.panOffsetY = 0;
+    } else {
+      // 退出最大化模式，恢复默认缩放
+      if (this.boardSize === 15) {
+        this.scaleValue = 1;
+      } else {
+        this.scaleValue = 1;
+      }
+      this.pinchValue = 1;
+      this.offsetX = 0;
+      this.offsetY = 0;
+      this.panOffsetX = 0;
+      this.panOffsetY = 0;
+    }
   }
 
   /**
