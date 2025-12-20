@@ -6,6 +6,7 @@
 import { PieceType, GameStatus, GameConfig, DEFAULT_CONFIG, CONFIG_30X30, BOARD_SIZE_OPTIONS } from '../model/GameTypes';
 import { GameState } from '../model/GameState';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { media } from '@kit.MediaKit';
 
 @Entry
 @Component
@@ -37,12 +38,16 @@ struct Index {
   // 缩放相关状态（最大化模式使用）
   @State scaleValue: number = 1; // 当前缩放比例
   @State pinchValue: number = 1; // 捏合手势的缩放值
-  @State minScale: number = 0.5; // 最小缩放
-  @State maxScale: number = 3.0; // 最大缩放
+  @State minScale: number = 1.0; // 最小缩放
+  @State maxScale: number = 2.0; // 最大缩放
   private baseCellSize30: number = 12; // 30路棋盘基础格子大小
   private basePieceSize30: number = 10; // 30路棋盘基础棋子大小
-  private defaultScale15: number = 1.5; // 15路最大化默认缩放
-  private defaultScale30: number = 2.0; // 30路最大化默认缩放
+  private defaultScale15: number = 2.0; // 15路最大化默认缩放 200%
+  private defaultScale30: number = 3.0; // 30路最大化默认缩放 300%
+  private minScale15: number = 1.0; // 15路最小缩放 100%
+  private maxScale15: number = 2.0; // 15路最大缩放 200%
+  private minScale30: number = 1.0; // 30路最小缩放 100%
+  private maxScale30: number = 3.0; // 30路最大缩放 300%
   
   // 拖动相关状态（最大化模式使用）
   @State offsetX: number = 0; // 水平偏移
@@ -67,8 +72,14 @@ struct Index {
     [26, 3], [26, 15], [26, 26]
   ];
 
+  // 音频播放器
+  private blackPiecePlayer: media.AVPlayer | null = null;
+  private whitePiecePlayer: media.AVPlayer | null = null;
+  @State soundEnabled: boolean = true; // 是否启用声音
+
   aboutToAppear(): void {
     this.syncState();
+    this.initAudioPlayers();
   }
 
   /**
@@ -91,6 +102,50 @@ struct Index {
   }
 
   /**
+   * 初始化音频播放器
+   */
+  private async initAudioPlayers(): Promise<void> {
+    try {
+      // 创建黑子音效播放器
+      this.blackPiecePlayer = await media.createAVPlayer();
+      this.blackPiecePlayer.url = 'resource://rawfile/black_piece.mp3';
+      
+      // 创建白子音效播放器
+      this.whitePiecePlayer = await media.createAVPlayer();
+      this.whitePiecePlayer.url = 'resource://rawfile/white_piece.mp3';
+      
+      hilog.info(0x0000, 'GamePlay', 'Audio players initialized');
+    } catch (error) {
+      hilog.error(0x0000, 'GamePlay', `Failed to initialize audio players: ${error}`);
+    }
+  }
+
+  /**
+   * 播放落子音效
+   */
+  private playPieceSound(pieceType: PieceType): void {
+    if (!this.soundEnabled) {
+      return;
+    }
+    
+    try {
+      if (pieceType === PieceType.BLACK && this.blackPiecePlayer) {
+        // 重置并播放黑子音效
+        this.blackPiecePlayer.seek(0);
+        this.blackPiecePlayer.play();
+        hilog.info(0x0000, 'GamePlay', 'Playing black piece sound');
+      } else if (pieceType === PieceType.WHITE && this.whitePiecePlayer) {
+        // 重置并播放白子音效
+        this.whitePiecePlayer.seek(0);
+        this.whitePiecePlayer.play();
+        hilog.info(0x0000, 'GamePlay', 'Playing white piece sound');
+      }
+    } catch (error) {
+      hilog.error(0x0000, 'GamePlay', `Failed to play sound: ${error}`);
+    }
+  }
+
+  /**
    * 处理落子事件
    */
   private handleCellClick(row: number, col: number): void {
@@ -99,8 +154,13 @@ struct Index {
     hilog.info(0x0000, 'GamePlay', `Game status: ${this.gameStatus}`);
     hilog.info(0x0000, 'GamePlay', `Total moves before: ${this.totalMoves}`);
     
+    // 保存当前玩家（落子前）
+    const currentPieceType = this.currentPlayer;
+    
     if (this.gameState.placePiece(row, col)) {
       hilog.info(0x0000, 'GamePlay', `Piece placed successfully at (${row}, ${col})`);
+      // 播放落子音效
+      this.playPieceSound(currentPieceType);
       this.syncState();
       hilog.info(0x0000, 'GamePlay', `Total moves after: ${this.totalMoves}`);
       hilog.info(0x0000, 'GamePlay', `New game status: ${this.gameStatus}`);
@@ -329,6 +389,11 @@ struct Index {
             .fontSize(12)
             .fontColor($r('app.color.secondary_text'))
             .margin({ left: 10 })
+
+          Text(' | 双指缩放/移动')
+            .fontSize(11)
+            .fontColor('#888888')
+            .margin({ left: 8 })
         }
         .margin({ top: 0, bottom: 0 })
       }
@@ -372,16 +437,18 @@ struct Index {
         .clip(true)
         .gesture(
           GestureGroup(GestureMode.Parallel,
-            // 双指缩放手势（30×30棋盘支持缩放，15×15最大化模式固定缩放）
+            // 双指缩放手势（15×15和30×30都支持缩放）
             PinchGesture({ fingers: 2 })
               .onActionStart((event: GestureEvent) => {
                 this.pinchValue = this.scaleValue;
               })
               .onActionUpdate((event: GestureEvent) => {
-                // 仅30×30棋盘支持动态缩放
-                if (this.boardSize === 30 && event && event.scale) {
+                if (event && event.scale) {
                   let newScale = this.pinchValue * event.scale;
-                  newScale = Math.max(this.minScale, Math.min(this.maxScale, newScale));
+                  // 根据棋盘尺寸使用不同的缩放限制
+                  const minLimit = this.boardSize === 15 ? this.minScale15 : this.minScale30;
+                  const maxLimit = this.boardSize === 15 ? this.maxScale15 : this.maxScale30;
+                  newScale = Math.max(minLimit, Math.min(maxLimit, newScale));
                   this.scaleValue = newScale;
                 }
               })
@@ -497,11 +564,15 @@ struct Index {
     hilog.info(0x0000, 'GamePlay', `Maximize mode: ${this.isMaximized}`);
 
     if (this.isMaximized) {
-      // 进入最大化模式，设置默认缩放
+      // 进入最大化模式，设置默认缩放和缩放限制
       if (this.boardSize === 15) {
-        this.scaleValue = this.defaultScale15; // 15×15 放大150%
+        this.scaleValue = this.defaultScale15; // 15×15 默认放大200%
+        this.minScale = this.minScale15;
+        this.maxScale = this.maxScale15;
       } else {
-        this.scaleValue = this.defaultScale30; // 30×30 放大200%
+        this.scaleValue = this.defaultScale30; // 30×30 默认放大300%
+        this.minScale = this.minScale30;
+        this.maxScale = this.maxScale30;
       }
       this.pinchValue = this.scaleValue;
       this.offsetX = 0;
@@ -510,11 +581,7 @@ struct Index {
       this.panOffsetY = 0;
     } else {
       // 退出最大化模式，恢复默认缩放
-      if (this.boardSize === 15) {
-        this.scaleValue = 1;
-      } else {
-        this.scaleValue = 1;
-      }
+      this.scaleValue = 1;
       this.pinchValue = 1;
       this.offsetX = 0;
       this.offsetY = 0;
@@ -597,23 +664,23 @@ struct Index {
       // 棋子
       if (this.boardData.length > row && this.boardData[row].length > col) {
         if (this.boardData[row][col] !== PieceType.EMPTY) {
-          Stack() {
-            // 棋子本体
-            Circle({ width: this.pieceSize, height: this.pieceSize })
-              .fill(this.boardData[row][col] === PieceType.BLACK ?
-                $r('app.color.black_piece') : $r('app.color.white_piece'))
-              .shadow({
-                radius: 3,
-                color: '#66000000',
-                offsetX: 1,
-                offsetY: 2
-              })
+          // 棋子本体
+          Circle({ width: this.pieceSize, height: this.pieceSize })
+            .fill(this.boardData[row][col] === PieceType.BLACK ?
+              $r('app.color.black_piece') : $r('app.color.white_piece'))
+            .stroke(this.boardData[row][col] === PieceType.BLACK ? '#000000' : '#CCCCCC')
+            .strokeWidth(0.5)
+            .shadow({
+              radius: 2,
+              color: '#44000000',
+              offsetX: 1,
+              offsetY: 1
+            })
 
-            // 最后落子标记
-            if (row === this.lastMoveRow && col === this.lastMoveCol) {
-              Circle({ width: this.boardSize === 30 ? 4 : 6, height: this.boardSize === 30 ? 4 : 6 })
-                .fill($r('app.color.last_move_marker'))
-            }
+          // 最后落子标记
+          if (row === this.lastMoveRow && col === this.lastMoveCol) {
+            Circle({ width: this.boardSize === 30 ? 4 : 6, height: this.boardSize === 30 ? 4 : 6 })
+              .fill($r('app.color.last_move_marker'))
           }
         }
       }
