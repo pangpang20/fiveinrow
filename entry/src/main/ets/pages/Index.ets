@@ -9,6 +9,16 @@ import { AudioManager } from '../model/AudioManager';
 import { APP_INFO, BOARD_LAYOUT, SCALE_CONFIG, isStarPoint, getIndices } from '../model/GameConstants';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
+// 礼花粒子接口
+interface ConfettiItem {
+  id: number;
+  x: number;
+  y: number;
+  color: string;
+  size: number;
+  rotation: number;
+}
+
 @Entry
 @Component
 struct Index {
@@ -29,6 +39,29 @@ struct Index {
   @State pieceSize: number = BOARD_LAYOUT.board15.pieceSize;
   @State isMaximized: boolean = false;
   @State soundEnabled: boolean = true;
+
+  // 庆祝动画状态
+  @State showCelebration: boolean = false;
+  @State celebrationText: string = '';
+  @State winnerText: string = '';
+  @State confettiItems: ConfettiItem[] = [];
+  private celebrationTimer: number = -1;
+
+  // 夸奖语列表
+  private readonly praises: string[] = [
+    '真棒！🎉',
+    '太厉害了！👏',
+    '神乎其技！✨',
+    '无人能敌！💪',
+    '棋艺超群！🏆',
+    '完美胜利！🌟',
+    '天才棋手！🧠',
+    '实力超群！🔥',
+    '战无不胜！⚔️',
+    '霸气十足！👑',
+    '高手如云！☁️',
+    '技惊四座！🌍'
+  ];
 
   // 缩放相关状态（最大化模式使用）
   @State scaleValue: number = 1;
@@ -58,6 +91,8 @@ struct Index {
    * 同步游戏状态到UI
    */
   private syncState(): void {
+    const previousStatus = this.gameStatus;
+    
     this.boardData = this.gameState.getBoard();
     this.currentPlayer = this.gameState.getCurrentPlayer();
     this.gameStatus = this.gameState.getGameStatus();
@@ -70,6 +105,15 @@ struct Index {
     } else {
       this.lastMoveRow = -1;
       this.lastMoveCol = -1;
+    }
+
+    // 检测是否刚刚获胜，触发庆祝动画
+    if (previousStatus === GameStatus.PLAYING) {
+      if (this.gameStatus === GameStatus.BLACK_WIN) {
+        this.triggerCelebration(true);
+      } else if (this.gameStatus === GameStatus.WHITE_WIN) {
+        this.triggerCelebration(false);
+      }
     }
   }
 
@@ -104,9 +148,65 @@ struct Index {
    * 处理重新开始事件
    */
   private handleRestart(): void {
+    this.closeCelebration();
     this.gameState.reset();
     this.syncState();
     hilog.info(0x0000, 'GamePlay', 'Game reset');
+  }
+
+  /**
+   * 触发庆祝动画
+   */
+  private triggerCelebration(isBlackWin: boolean): void {
+    // 设置获胜者文本
+    this.winnerText = isBlackWin ? '⬛ 黑方获胜！' : '⬜ 白方获胜！';
+    
+    // 随机选择夸奖语
+    const randomIndex = Math.floor(Math.random() * this.praises.length);
+    this.celebrationText = this.praises[randomIndex];
+    
+    // 生成礼花粒子
+    this.generateConfetti();
+    
+    // 显示庆祝弹窗
+    this.showCelebration = true;
+    
+    // 5秒后自动关闭
+    this.celebrationTimer = setTimeout(() => {
+      this.showCelebration = false;
+    }, 5000) as number;
+  }
+
+  /**
+   * 生成礼花粒子
+   */
+  private generateConfetti(): void {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+    const items: ConfettiItem[] = [];
+    
+    for (let i = 0; i < 50; i++) {
+      items.push({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 8 + Math.random() * 12,
+        rotation: Math.random() * 360
+      });
+    }
+    
+    this.confettiItems = items;
+  }
+
+  /**
+   * 关闭庆祝弹窗
+   */
+  private closeCelebration(): void {
+    this.showCelebration = false;
+    if (this.celebrationTimer !== -1) {
+      clearTimeout(this.celebrationTimer);
+      this.celebrationTimer = -1;
+    }
   }
 
   /**
@@ -182,7 +282,9 @@ struct Index {
   }
 
   build() {
-    Column() {
+    Stack() {
+      // 主内容
+      Column() {
       // 标题区域（非最大化模式）
       if (!this.isMaximized) {
         Text('FiveInRow互动五子棋')
@@ -377,6 +479,61 @@ struct Index {
     .backgroundColor($r('app.color.page_background'))
     .justifyContent(FlexAlign.Start)
     .alignItems(HorizontalAlign.Center)
+
+      // 庆祝弹窗层
+      if (this.showCelebration) {
+        Stack() {
+          // 半透明背景
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor('#99000000')
+            .onClick(() => this.closeCelebration())
+
+          // 礼花粒子
+          ForEach(this.confettiItems, (item: ConfettiItem) => {
+            Text('⭐')
+              .fontSize(item.size)
+              .fontColor(item.color)
+              .position({ x: `${item.x}%`, y: `${item.y}%` })
+              .rotate({ angle: item.rotation })
+          })
+
+          // 中心内容
+          Column() {
+            Text(this.winnerText)
+              .fontSize(36)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#FFFFFF')
+              .margin({ bottom: 20 })
+
+            Text(this.celebrationText)
+              .fontSize(48)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#FFD700')
+              .margin({ bottom: 40 })
+
+            Button('再来一局')
+              .fontSize(20)
+              .fontColor('#FFFFFF')
+              .backgroundColor('#4CAF50')
+              .width(160)
+              .height(50)
+              .borderRadius(25)
+              .onClick(() => {
+                this.closeCelebration();
+                this.handleRestart();
+              })
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        }
+        .width('100%')
+        .height('100%')
+      }
+    }
+    .width('100%')
+    .height('100%')
   }
 
   /**
