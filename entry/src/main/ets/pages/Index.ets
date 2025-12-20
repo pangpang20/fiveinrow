@@ -12,14 +12,16 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 // 礼花粒子接口
 interface ConfettiItem {
   id: number;
-  left: Length;
-  top: Length;
+  x: number;      // 水平位置百分比
+  y: number;      // 垂直位置百分比
+  speedY: number; // 下落速度
+  speedX: number; // 水平摇摆速度
   color: string;
   size: number;
   rotation: number;
+  rotationSpeed: number; // 旋转速度
   symbol: string;
   opacity: number;
-  scale: number;
 }
 
 @Entry
@@ -49,6 +51,7 @@ struct Index {
   @State winnerText: string = '';
   @State confettiItems: ConfettiItem[] = [];
   private celebrationTimer: number = -1;
+  private animationTimer: number = -1;
 
   // 夸奖语列表
   private readonly praises: string[] = [
@@ -193,24 +196,80 @@ struct Index {
     const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
     const items: ConfettiItem[] = [];
     
-    // 创建粒子，分布在整个屏幕
-    for (let i = 0; i < 80; i++) {
-      const leftPercent = Math.random() * 95;
-      const topPercent = Math.random() * 90;
+    // 创建粒子，初始分布在不同高度
+    for (let i = 0; i < 60; i++) {
       items.push({
         id: i,
-        left: `${leftPercent}%`,
-        top: `${topPercent}%`,
+        x: Math.random() * 100,
+        y: -10 + Math.random() * 110, // 从屏幕上方开始
+        speedY: 0.3 + Math.random() * 0.8, // 不同的下落速度
+        speedX: (Math.random() - 0.5) * 0.4, // 左右摇摆
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 18 + Math.random() * 28,
+        size: 20 + Math.random() * 26,
         rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 6, // 旋转速度
         symbol: symbols[Math.floor(Math.random() * symbols.length)],
-        opacity: 0.7 + Math.random() * 0.3,
-        scale: 0.8 + Math.random() * 0.6
+        opacity: 0.75 + Math.random() * 0.25
       });
     }
     
     this.confettiItems = items;
+    this.startConfettiAnimation();
+  }
+
+  /**
+   * 启动礼花动画
+   */
+  private startConfettiAnimation(): void {
+    // 清除旧的定时器
+    if (this.animationTimer !== -1) {
+      clearInterval(this.animationTimer);
+    }
+    
+    // 30fps 动画
+    this.animationTimer = setInterval(() => {
+      const newItems: ConfettiItem[] = [];
+      for (const item of this.confettiItems) {
+        let newY = item.y + item.speedY;
+        let newX = item.x + item.speedX;
+        let newRotation = item.rotation + item.rotationSpeed;
+        
+        // 落到底部后重新从顶部开始
+        if (newY > 105) {
+          newY = -5;
+          newX = Math.random() * 100;
+        }
+        
+        // 水平边界处理
+        if (newX < 0) newX = 100;
+        if (newX > 100) newX = 0;
+        
+        newItems.push({
+          id: item.id,
+          x: newX,
+          y: newY,
+          speedY: item.speedY,
+          speedX: item.speedX,
+          color: item.color,
+          size: item.size,
+          rotation: newRotation,
+          rotationSpeed: item.rotationSpeed,
+          symbol: item.symbol,
+          opacity: item.opacity
+        });
+      }
+      this.confettiItems = newItems;
+    }, 33) as number;
+  }
+
+  /**
+   * 停止礼花动画
+   */
+  private stopConfettiAnimation(): void {
+    if (this.animationTimer !== -1) {
+      clearInterval(this.animationTimer);
+      this.animationTimer = -1;
+    }
   }
 
   /**
@@ -218,6 +277,7 @@ struct Index {
    */
   private closeCelebration(): void {
     this.showCelebration = false;
+    this.stopConfettiAnimation();
     if (this.celebrationTimer !== -1) {
       clearTimeout(this.celebrationTimer);
       this.celebrationTimer = -1;
@@ -506,9 +566,8 @@ struct Index {
                 .fontColor(item.color)
                 .opacity(item.opacity)
                 .rotate({ angle: item.rotation })
-                .scale({ x: item.scale, y: item.scale })
-                .shadow({ radius: 12, color: item.color, offsetX: 0, offsetY: 0 })
-                .position({ x: item.left, y: item.top })
+                .shadow({ radius: 10, color: item.color, offsetX: 0, offsetY: 0 })
+                .position({ x: `${item.x}%`, y: `${item.y}%` })
             }, (item: ConfettiItem) => item.id.toString())
           }
           .width('100%')
