@@ -14,9 +14,13 @@ interface ConfettiItem {
   id: number;
   x: number;
   y: number;
+  endY: number;  // 终点Y位置
   color: string;
   size: number;
   rotation: number;
+  duration: number;  // 动画时长
+  delay: number;     // 延迟开始
+  symbol: string;    // 粒子符号
 }
 
 @Entry
@@ -181,17 +185,22 @@ struct Index {
    * 生成礼花粒子
    */
   private generateConfetti(): void {
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9', '#FF69B4', '#00CED1'];
+    const symbols = ['⭐', '✨', '🌟', '❤️', '💛', '💚', '💙', '💜', '♥', '♦', '●', '◆'];
     const items: ConfettiItem[] = [];
     
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 80; i++) {
       items.push({
         id: i,
         x: Math.random() * 100,
-        y: Math.random() * 100,
+        y: -10 - Math.random() * 20,  // 从顶部上方开始
+        endY: 100 + Math.random() * 20, // 落到底部下方
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 8 + Math.random() * 12,
-        rotation: Math.random() * 360
+        size: 16 + Math.random() * 20,
+        rotation: Math.random() * 360,
+        duration: 2000 + Math.random() * 2000, // 2-4秒
+        delay: Math.random() * 1000, // 0-1秒延迟
+        symbol: symbols[Math.floor(Math.random() * symbols.length)]
       });
     }
     
@@ -490,13 +499,21 @@ struct Index {
             .backgroundColor('#99000000')
             .onClick(() => this.closeCelebration())
 
-          // 礼花粒子
+          // 礼花粒子动画
           ForEach(this.confettiItems, (item: ConfettiItem) => {
-            Text('⭐')
+            Text(item.symbol)
               .fontSize(item.size)
               .fontColor(item.color)
               .position({ x: `${item.x}%`, y: `${item.y}%` })
               .rotate({ angle: item.rotation })
+              .opacity(0.9)
+              .animation({
+                duration: item.duration,
+                delay: item.delay,
+                iterations: -1,
+                curve: Curve.EaseIn
+              })
+              .translate({ y: `${item.endY - item.y}%` })
           })
 
           // 中心内容
