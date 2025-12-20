@@ -632,8 +632,7 @@ struct Index {
               .height(60)
               .borderRadius(30)
               .shadow({ radius: 20, color: '#2E7D32', offsetX: 0, offsetY: 6 })
-              .onClick((event: ClickEvent) => {
-                event.stopPropagation();
+              .onClick(() => {
                 this.handleRestart();
               })
           }
@@ -644,9 +643,7 @@ struct Index {
           .border({ width: 2, color: '#FFFF00' })
           .shadow({ radius: 40, color: '#000000', offsetX: 0, offsetY: 15 })
           .position({ x: '7.5%', y: '25%' })
-          .onClick((event: ClickEvent) => {
-            event.stopPropagation();
-          })
+          .hitTestBehavior(HitTestMode.Block)
         }
         .width('100%')
         .height('100%')
