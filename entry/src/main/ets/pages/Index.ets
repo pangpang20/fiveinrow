@@ -43,11 +43,11 @@ struct Index {
   private baseCellSize30: number = 12; // 30路棋盘基础格子大小
   private basePieceSize30: number = 10; // 30路棋盘基础棋子大小
   private defaultScale15: number = 2.0; // 15路最大化默认缩放 200%
-  private defaultScale30: number = 3.0; // 30路最大化默认缩放 300%
+  private defaultScale30: number = 4.0; // 30路最大化默认缩放 400%
   private minScale15: number = 1.0; // 15路最小缩放 100%
   private maxScale15: number = 2.0; // 15路最大缩放 200%
   private minScale30: number = 1.0; // 30路最小缩放 100%
-  private maxScale30: number = 3.0; // 30路最大缩放 300%
+  private maxScale30: number = 4.0; // 30路最大缩放 400%
   
   // 拖动相关状态（最大化模式使用）
   @State offsetX: number = 0; // 水平偏移
@@ -314,16 +314,30 @@ struct Index {
         }
         .margin({ bottom: 5 })
 
-        // 最大化按钮
-        Button('最大化')
-          .fontSize(14)
-          .fontColor($r('app.color.button_text'))
-          .backgroundColor('#FF6B35')
-          .width(100)
-          .height(32)
-          .borderRadius(16)
-          .margin({ bottom: 10 })
-          .onClick(() => this.toggleMaximize())
+        // 最大化按钮和声音开关
+        Row() {
+          Button('最大化')
+            .fontSize(14)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor('#FF6B35')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .onClick(() => this.toggleMaximize())
+
+          Button(this.soundEnabled ? '🔊 声音' : '🔇 静音')
+            .fontSize(14)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor(this.soundEnabled ? '#4CAF50' : '#9E9E9E')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .margin({ left: 10 })
+            .onClick(() => {
+              this.soundEnabled = !this.soundEnabled;
+            })
+        }
+        .margin({ bottom: 10 })
       }
 
 
