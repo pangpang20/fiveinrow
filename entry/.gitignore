@@ -4,6 +4,7 @@
 /build
 /.cxx
 /.test
+.qoder/
 
 # IDE
 .idea/
