@@ -1,0 +1,1529 @@
+===============================================================================
+                    五子棋游戏软件源代码（前30页）
+===============================================================================
+软件名称：FiveInRow互动五子棋
+版本号：v1.0.0
+开发者：陈云亮
+邮箱：676814828@qq.com
+开发日期：2025年12月
+===============================================================================
+
+本文档包含软件源代码的前30页内容，按照文件顺序展示核心代码实现。
+
+===============================================================================
+第1页
+===============================================================================
+文件路径：entry/src/main/ets/pages/Index.ets
+文件说明：五子棋游戏主页面，实现棋盘显示、落子交互、悔棋、胜负判定等功能
+-------------------------------------------------------------------------------
+
+/**
+ * 五子棋游戏主页面
+ * 实现棋盘显示、落子交互、悔棋、胜负判定等功能
+ */
+
+import { PieceType, GameStatus, DEFAULT_CONFIG, CONFIG_30X30 } from '../model/GameTypes';
+import { GameState } from '../model/GameState';
+import { AudioManager } from '../model/AudioManager';
+import { APP_INFO, BOARD_LAYOUT, SCALE_CONFIG, isStarPoint, getIndices } from '../model/GameConstants';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+// 礼花粒子接口
+interface ConfettiItem {
+  id: number;
+  x: number;      // 水平位置 vp
+  y: number;      // 垂直位置 vp
+  speedY: number; // 下落速度
+  speedX: number; // 水平摇摆速度
+  color: string;
+  size: number;
+  rotation: number;
+  rotationSpeed: number;
+  symbol: string;
+}
+
+@Entry
+@Component
+struct Index {
+  // 游戏状态管理
+  private gameState: GameState = new GameState(DEFAULT_CONFIG);
+  private audioManager: AudioManager = AudioManager.getInstance();
+
+  // UI响应式状态
+  @State boardData: PieceType[][] = [];
+  @State currentPlayer: PieceType = PieceType.BLACK;
+  @State gameStatus: GameStatus = GameStatus.PLAYING;
+  @State lastMoveRow: number = -1;
+  @State lastMoveCol: number = -1;
+  @State totalMoves: number = 0;
+  @State selectedBoardSize: number = 15;
+
+===============================================================================
+第2页
+===============================================================================
+
+  @State boardSize: number = 15;
+  @State cellSize: number = BOARD_LAYOUT.board15.cellSize;
+  @State pieceSize: number = BOARD_LAYOUT.board15.pieceSize;
+  @State isMaximized: boolean = false;
+  @State soundEnabled: boolean = true;
+
+  // 庆祝动画状态
+  @State showCelebration: boolean = false;
+  @State celebrationText: string = '';
+  @State winnerText: string = '';
+  @State confettiItems: ConfettiItem[] = [];
+  @State animationTick: number = 0; // 动画帧计数器
+  @State screenWidth: number = 400;  // 屏幕宽度，动态获取
+  @State screenHeight: number = 800; // 屏幕高度，动态获取
+  private celebrationTimer: number = -1;
+  private animationTimer: number = -1;
+
+  // 夸奖语列表
+  private readonly praises: string[] = [
+    '真棒！🎉',
+    '太厉害了！👏',
+    '神乎其技！✨',
+    '无人能敌！💪',
+    '棋艺超群！🏆',
+    '完美胜利！🌟',
+    '天才棋手！🧠',
+    '实力超群！🔥',
+    '战无不胜！⚔️',
+    '霸气十足！👑',
+    '高手如云！☁️',
+    '技惊四座！🌍'
+  ];
+
+  // 缩放相关状态（最大化模式使用）
+  @State scaleValue: number = 1;
+  @State pinchValue: number = 1;
+  @State minScale: number = 1.0;
+  @State maxScale: number = 2.0;
+
+  // 拖动相关状态（最大化模式使用）
+  @State offsetX: number = 0;
+  @State offsetY: number = 0;
+  private panOffsetX: number = 0;
+  private panOffsetY: number = 0;
+
+===============================================================================
+第3页
+===============================================================================
+
+  aboutToAppear(): void {
+    this.syncState();
+    // 获取 Context 并初始化音频管理器
+    const context = getContext(this);
+    this.audioManager.setContext(context);
+    this.audioManager.initialize();
+  }
+
+  aboutToDisappear(): void {
+    this.audioManager.release();
+  }
+
+  /**
+   * 同步游戏状态到UI
+   */
+  private syncState(): void {
+    const previousStatus = this.gameStatus;
+    
+    this.boardData = this.gameState.getBoard();
+    this.currentPlayer = this.gameState.getCurrentPlayer();
+    this.gameStatus = this.gameState.getGameStatus();
+    this.totalMoves = this.gameState.getTotalMoves();
+
+    const lastMove = this.gameState.getLastMove();
+    if (lastMove) {
+      this.lastMoveRow = lastMove.row;
+      this.lastMoveCol = lastMove.col;
+    } else {
+      this.lastMoveRow = -1;
+      this.lastMoveCol = -1;
+    }
+
+    // 检测是否刚刚获胜，触发庆祝动画
+    if (previousStatus === GameStatus.PLAYING) {
+      if (this.gameStatus === GameStatus.BLACK_WIN) {
+        this.triggerCelebration(true);
+      } else if (this.gameStatus === GameStatus.WHITE_WIN) {
+        this.triggerCelebration(false);
+      }
+    }
+  }
+
+  /**
+   * 处理落子事件
+   */
+  private handleCellClick(row: number, col: number): void {
+    hilog.info(0x0000, 'GamePlay', `Cell clicked: row=${row}, col=${col}`);
+
+    const currentPieceType = this.currentPlayer;
+
+===============================================================================
+第4页
+===============================================================================
+
+    if (this.gameState.placePiece(row, col)) {
+      hilog.info(0x0000, 'GamePlay', `Piece placed at (${row}, ${col})`);
+      if (this.soundEnabled) {
+        this.audioManager.playPieceSound(currentPieceType);
+      }
+      this.syncState();
+    }
+  }
+
+  /**
+   * 处理悔棋事件
+   */
+  private handleUndo(): void {
+    if (this.gameState.undo()) {
+      hilog.info(0x0000, 'GamePlay', 'Undo successful');
+      this.syncState();
+    }
+  }
+
+  /**
+   * 处理重新开始事件
+   */
+  private handleRestart(): void {
+    this.closeCelebration();
+    this.gameState.reset();
+    this.syncState();
+    hilog.info(0x0000, 'GamePlay', 'Game reset');
+  }
+
+  /**
+   * 触发庆祝动画
+   */
+  private triggerCelebration(isBlackWin: boolean): void {
+    // 设置获胜者文本
+    this.winnerText = isBlackWin ? '⬛ 黑方获胜！' : '⬜ 白方获胜！';
+    
+    // 随机选择夸奖语
+    const randomIndex = Math.floor(Math.random() * this.praises.length);
+    this.celebrationText = this.praises[randomIndex];
+    
+    // 生成礼花粒子
+    this.generateConfetti();
+    
+    // 显示庆祝弹窗
+    this.showCelebration = true;
+    
+    // 5秒后自动关闭
+    this.celebrationTimer = setTimeout(() => {
+      this.showCelebration = false;
+    }, 5000) as number;
+  }
+
+===============================================================================
+第5页
+===============================================================================
+
+  /**
+   * 生成礼花粒子
+   */
+  private generateConfetti(): void {
+    const colors: string[] = [
+      '#FFFF00', '#FF0000', '#00FF00', '#00FFFF', '#FF00FF',
+      '#FFA500', '#FFEB3B', '#4CAF50', '#2196F3', '#E91E63',
+      '#FF5722', '#8BC34A', '#03A9F4', '#9C27B0', '#FFCC00',
+      '#00FF7F', '#FF1493', '#7FFF00', '#FF6347', '#40E0D0'
+    ];
+    const symbols: string[] = ['✨', '⭐', '🌟', '💫', '🎊', '🎉', '💎', '🌈', '🔥', '💥', '🎵', '🎶'];
+    const items: ConfettiItem[] = [];
+    
+    const w = this.screenWidth > 0 ? this.screenWidth : 400;
+    const h = this.screenHeight > 0 ? this.screenHeight : 800;
+    
+    // 创建粒子，初始分布在不同高度
+    for (let i = 0; i < 50; i++) {
+      items.push({
+        id: i,
+        x: Math.random() * w,
+        y: Math.random() * h - 50,
+        speedY: 2 + Math.random() * 4,
+        speedX: (Math.random() - 0.5) * 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 22 + Math.random() * 22,
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 8,
+        symbol: symbols[Math.floor(Math.random() * symbols.length)]
+      });
+    }
+    
+    this.confettiItems = items;
+    this.animationTick = 0;
+    this.startConfettiAnimation();
+  }
+
+  /**
+   * 启动礼花动画
+   */
+  private startConfettiAnimation(): void {
+    if (this.animationTimer !== -1) {
+      clearInterval(this.animationTimer);
+    }
+    
+    // 25fps 动画
+    this.animationTimer = setInterval(() => {
+      const w = this.screenWidth > 0 ? this.screenWidth : 400;
+      const h = this.screenHeight > 0 ? this.screenHeight : 800;
+
+===============================================================================
+第6页
+===============================================================================
+
+      const items = this.confettiItems;
+      for (let i = 0; i < items.length; i++) {
+        items[i].y += items[i].speedY;
+        items[i].x += items[i].speedX;
+        items[i].rotation += items[i].rotationSpeed;
+        
+        // 落到底部后重新从顶部开始
+        if (items[i].y > h + 30) {
+          items[i].y = -30;
+          items[i].x = Math.random() * w;
+        }
+        // 水平边界
+        if (items[i].x < -20) items[i].x = w + 10;
+        if (items[i].x > w + 20) items[i].x = -10;
+      }
+      // 更新 tick 触发 UI 刷新
+      this.animationTick++;
+    }, 40) as number;
+  }
+
+  /**
+   * 重新分布粒子以覆盖整个屏幕
+   */
+  private redistributeConfetti(): void {
+    const w = this.screenWidth;
+    const h = this.screenHeight;
+    const items = this.confettiItems;
+    for (let i = 0; i < items.length; i++) {
+      items[i].x = Math.random() * w;
+      items[i].y = Math.random() * h - 50;
+    }
+  }
+
+  /**
+   * 停止礼花动画
+   */
+  private stopConfettiAnimation(): void {
+    if (this.animationTimer !== -1) {
+      clearInterval(this.animationTimer);
+      this.animationTimer = -1;
+    }
+  }
+
+  /**
+   * 关闭庆祝弹窗
+   */
+  private closeCelebration(): void {
+    this.showCelebration = false;
+    this.stopConfettiAnimation();
+
+===============================================================================
+第7页
+===============================================================================
+
+    if (this.celebrationTimer !== -1) {
+      clearTimeout(this.celebrationTimer);
+      this.celebrationTimer = -1;
+    }
+  }
+
+  /**
+   * 获取状态文本
+   */
+  private getStatusText(): string {
+    switch (this.gameStatus) {
+      case GameStatus.BLACK_WIN:
+        return '黑方获胜！';
+      case GameStatus.WHITE_WIN:
+        return '白方获胜！';
+      case GameStatus.DRAW:
+        return '平局！';
+      default:
+        return this.currentPlayer === PieceType.BLACK ? '黑方回合' : '白方回合';
+    }
+  }
+
+  /**
+   * 切换棋盘尺寸
+   */
+  private switchBoardSize(size: number): void {
+    if (size === this.boardSize) return;
+
+    this.selectedBoardSize = size;
+    this.boardSize = size;
+    this.isMaximized = false;
+    this.resetTransform();
+
+    if (size === 30) {
+      this.cellSize = BOARD_LAYOUT.board30.baseCellSize;
+      this.pieceSize = BOARD_LAYOUT.board30.basePieceSize;
+      this.gameState = new GameState(CONFIG_30X30);
+    } else {
+      this.cellSize = BOARD_LAYOUT.board15.cellSize;
+      this.pieceSize = BOARD_LAYOUT.board15.pieceSize;
+      this.gameState = new GameState(DEFAULT_CONFIG);
+    }
+
+    this.syncState();
+    hilog.info(0x0000, 'GamePlay', `Board size changed to: ${size}`);
+  }
+
+===============================================================================
+第8页
+===============================================================================
+
+  /**
+   * 切换最大化模式
+   */
+  private toggleMaximize(): void {
+    this.isMaximized = !this.isMaximized;
+
+    if (this.isMaximized) {
+      const config = this.boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
+      this.scaleValue = config.defaultValue;
+      this.minScale = config.min;
+      this.maxScale = config.max;
+      this.pinchValue = this.scaleValue;
+    } else {
+      this.resetTransform();
+    }
+
+    hilog.info(0x0000, 'GamePlay', `Maximize mode: ${this.isMaximized}`);
+  }
+
+  /**
+   * 重置变换状态
+   */
+  private resetTransform(): void {
+    this.scaleValue = 1;
+    this.pinchValue = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.panOffsetX = 0;
+    this.panOffsetY = 0;
+  }
+
+  build() {
+    Stack() {
+      // 主内容
+      Column() {
+      // 标题区域（非最大化模式）
+      if (!this.isMaximized) {
+        Text('FiveInRow互动五子棋')
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.primary_text'))
+          .margin({ top: 20, bottom: 10 })
+
+        // 棋盘尺寸选择
+        Row() {
+          Text('棋盘尺寸:')
+            .fontSize(14)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ right: 10 })
+
+===============================================================================
+第9页
+===============================================================================
+
+          Button('15×15')
+            .fontSize(14)
+            .fontColor(this.selectedBoardSize === 15 ? $r('app.color.button_text') : $r('app.color.primary_text'))
+            .backgroundColor(this.selectedBoardSize === 15 ? $r('app.color.button_primary') : '#E0E0E0')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .onClick(() => this.switchBoardSize(15))
+
+          Button('30×30')
+            .fontSize(14)
+            .fontColor(this.selectedBoardSize === 30 ? $r('app.color.button_text') : $r('app.color.primary_text'))
+            .backgroundColor(this.selectedBoardSize === 30 ? $r('app.color.button_primary') : '#E0E0E0')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .margin({ left: 10 })
+            .onClick(() => this.switchBoardSize(30))
+        }
+        .margin({ bottom: 5 })
+
+        // 最大化和声音开关
+        Row() {
+          Button('最大化')
+            .fontSize(14)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor('#FF6B35')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .onClick(() => this.toggleMaximize())
+
+          Button(this.soundEnabled ? '声音 开' : '声音 关')
+            .fontSize(14)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor(this.soundEnabled ? '#4CAF50' : '#9E9E9E')
+            .width(80)
+            .height(32)
+            .borderRadius(16)
+            .margin({ left: 10 })
+            .onClick(() => {
+              this.soundEnabled = !this.soundEnabled;
+              this.audioManager.setSoundEnabled(this.soundEnabled);
+            })
+        }
+        .margin({ bottom: 10 })
+
+===============================================================================
+第10页
+===============================================================================
+
+        // 状态显示
+        Row() {
+          if (this.gameStatus === GameStatus.PLAYING) {
+            Circle({ width: 24, height: 24 })
+              .fill(this.currentPlayer === PieceType.BLACK ?
+                $r('app.color.black_turn_indicator') : $r('app.color.white_turn_indicator'))
+              .stroke($r('app.color.board_line'))
+              .strokeWidth(1)
+              .margin({ right: 8 })
+          }
+
+          Text(this.getStatusText())
+            .fontSize(20)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.gameStatus !== GameStatus.PLAYING ?
+              $r('app.color.win_color') : $r('app.color.primary_text'))
+        }
+        .margin({ bottom: 10 })
+
+        Text(`总步数: ${this.totalMoves}`)
+          .fontSize(14)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: this.boardSize === 30 ? 5 : 15 })
+      }
+
+      // 最大化模式：简化状态栏
+      if (this.isMaximized) {
+        Row() {
+          Button('退出最大化')
+            .fontSize(12)
+            .fontColor($r('app.color.button_text'))
+            .backgroundColor('#FF6B35')
+            .height(28)
+            .borderRadius(14)
+            .margin({ right: 15 })
+            .onClick(() => this.toggleMaximize())
+
+          if (this.gameStatus === GameStatus.PLAYING) {
+            Circle({ width: 20, height: 20 })
+              .fill(this.currentPlayer === PieceType.BLACK ?
+                $r('app.color.black_turn_indicator') : $r('app.color.white_turn_indicator'))
+              .stroke($r('app.color.board_line'))
+              .strokeWidth(1)
+              .margin({ right: 6 })
+          }
+
+===============================================================================
+第11页
+===============================================================================
+
+          Text(this.getStatusText())
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.gameStatus !== GameStatus.PLAYING ?
+              $r('app.color.win_color') : $r('app.color.primary_text'))
+
+          Text(` | ${(this.scaleValue * 100).toFixed(0)}%`)
+            .fontSize(12)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ left: 10 })
+
+          Text(' | 双指缩放/三指移动')
+            .fontSize(11)
+            .fontColor('#888888')
+            .margin({ left: 8 })
+        }
+        .margin({ top: 0, bottom: 0 })
+      }
+
+      // 非最大化30路缩放提示
+      if (!this.isMaximized && this.boardSize === 30) {
+        Text(`双指缩放: ${(this.scaleValue * 100).toFixed(0)}% | 支持三指拖拽移动`)
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+          .margin({ bottom: 10 })
+      }
+
+      // 棋盘区域
+      if (this.isMaximized || this.boardSize === 30) {
+        this.ScalableBoard()
+      } else {
+        this.StaticBoard()
+      }
+
+      // 操作按钮
+      Row() {
+        Button('悔棋')
+          .fontSize(this.isMaximized ? 14 : 16)
+          .fontColor($r('app.color.button_text'))
+          .backgroundColor($r('app.color.button_secondary'))
+          .width(this.isMaximized ? 80 : 100)
+          .height(this.isMaximized ? 36 : 44)
+          .borderRadius(this.isMaximized ? 18 : 22)
+          .enabled(this.totalMoves > 0 && this.gameStatus === GameStatus.PLAYING)
+          .opacity(this.totalMoves > 0 && this.gameStatus === GameStatus.PLAYING ? 1 : 0.5)
+          .onClick(() => this.handleUndo())
+
+===============================================================================
+第12页
+===============================================================================
+
+        Button('重新开始')
+          .fontSize(this.isMaximized ? 14 : 16)
+          .fontColor($r('app.color.button_text'))
+          .backgroundColor($r('app.color.button_primary'))
+          .width(this.isMaximized ? 100 : 120)
+          .height(this.isMaximized ? 36 : 44)
+          .borderRadius(this.isMaximized ? 18 : 22)
+          .margin({ left: 20 })
+          .enabled(this.totalMoves > 0)
+          .opacity(this.totalMoves > 0 ? 1 : 0.5)
+          .onClick(() => this.handleRestart())
+      }
+      .margin({ bottom: this.isMaximized ? 0 : (this.boardSize === 30 ? 10 : 20) })
+
+      // 版本信息（非最大化模式）
+      if (!this.isMaximized) {
+        Column() {
+          Text(`v${APP_INFO.version}`)
+            .fontSize(12)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ bottom: 4 })
+
+          Text(`作者: ${APP_INFO.author}`)
+            .fontSize(11)
+            .fontColor($r('app.color.secondary_text'))
+            .margin({ bottom: 2 })
+
+          Text(APP_INFO.email)
+            .fontSize(10)
+            .fontColor($r('app.color.secondary_text'))
+        }
+        .margin({ bottom: this.boardSize === 30 ? 10 : 15 })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+    .justifyContent(FlexAlign.Start)
+    .alignItems(HorizontalAlign.Center)
+
+      // 庆祝弹窗层
+      if (this.showCelebration) {
+        Column() {
+          // 礼花粒子层 - 使用 animationTick 触发重绘
+          Stack() {
+
+===============================================================================
+第13页
+===============================================================================
+
+            ForEach(this.confettiItems, (item: ConfettiItem) => {
+              Text(item.symbol)
+                .fontSize(item.size)
+                .fontColor(item.color)
+                .rotate({ angle: item.rotation })
+                .shadow({ radius: 8, color: item.color, offsetX: 0, offsetY: 0 })
+                .position({ x: item.x + this.animationTick * 0, y: item.y })
+            }, (item: ConfettiItem) => `${item.id}_${this.animationTick}`)
+          }
+          .width('100%')
+          .height('100%')
+          .clip(true)
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            // 动态获取实际屏幕尺寸
+            const newWidth = Number(newArea.width);
+            const newHeight = Number(newArea.height);
+            if (newWidth > 0 && newHeight > 0) {
+              if (this.screenWidth !== newWidth || this.screenHeight !== newHeight) {
+                this.screenWidth = newWidth;
+                this.screenHeight = newHeight;
+                // 重新分布粒子以覆盖整个屏幕
+                this.redistributeConfetti();
+              }
+            }
+          })
+
+          // 中心内容卡片
+          Column() {
+            // 皇冠装饰
+            Text('👑')
+              .fontSize(60)
+              .margin({ bottom: 10 })
+
+            // 获胜者文本
+            Text(this.winnerText)
+              .fontSize(36)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#00FFFF')
+              .margin({ bottom: 16 })
+              .textShadow({ radius: 20, color: '#00CED1', offsetX: 0, offsetY: 0 })
+
+            // 夸奖语
+            Text(this.celebrationText)
+              .fontSize(48)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#FFFF00')
+              .margin({ bottom: 24 })
+              .textShadow({ radius: 25, color: '#FFA500', offsetX: 0, offsetY: 0 })
+
+===============================================================================
+第14页
+===============================================================================
+
+            // 装饰分割线
+            Row() {
+              Text('✦').fontSize(16).fontColor('#FFFF00')
+              Row().width(80).height(2).backgroundColor('#FFFF00').margin({ left: 8, right: 8 })
+              Text('✦').fontSize(16).fontColor('#FFFF00')
+            }
+            .margin({ bottom: 20 })
+
+            // 提示文字
+            Text('点击任意位置关闭')
+              .fontSize(14)
+              .fontColor('#AAAAAA')
+          }
+          .width('85%')
+          .padding({ top: 30, bottom: 30, left: 30, right: 30 })
+          .backgroundColor('#AA2D1B4E')
+          .borderRadius(28)
+          .border({ width: 2, color: '#FFFF00' })
+          .shadow({ radius: 40, color: '#000000', offsetX: 0, offsetY: 15 })
+          .position({ x: '7.5%', y: '25%' })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.closeCelebration();
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#88000000')
+        .onClick(() => this.closeCelebration())
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  /**
+   * 可缩放棋盘（最大化或30路）
+   */
+  @Builder
+  ScalableBoard() {
+    Stack() {
+      Column() {
+        ForEach(getIndices(this.boardSize), (row: number) => {
+          Row() {
+            ForEach(getIndices(this.boardSize), (col: number) => {
+              this.BoardCell(row, col)
+            })
+          }
+        })
+      }
+
+===============================================================================
+第15页
+===============================================================================
+
+      .backgroundColor($r('app.color.board_background'))
+      .padding(BOARD_LAYOUT.padding)
+      .borderRadius(8)
+      .shadow({ radius: 10, color: '#33000000', offsetX: 2, offsetY: 4 })
+      .scale({ x: this.scaleValue, y: this.scaleValue })
+      .translate({ x: this.offsetX, y: this.offsetY })
+    }
+    .width('100%')
+    .height('100%')
+    .clip(true)
+    .gesture(
+      GestureGroup(GestureMode.Exclusive,
+        // 三指移动手势（优先级更高，放在前面）
+        PanGesture({ fingers: 3, direction: PanDirection.All })
+          .onActionStart(() => {
+            this.panOffsetX = this.offsetX;
+            this.panOffsetY = this.offsetY;
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            if (event) {
+              this.offsetX = this.panOffsetX + (event.offsetX || 0);
+              this.offsetY = this.panOffsetY + (event.offsetY || 0);
+            }
+          })
+          .onActionEnd(() => {
+            this.panOffsetX = this.offsetX;
+            this.panOffsetY = this.offsetY;
+          }),
+        // 双指缩放手势
+        PinchGesture({ fingers: 2 })
+          .onActionStart(() => { this.pinchValue = this.scaleValue; })
+          .onActionUpdate((event: GestureEvent) => {
+            if (event?.scale) {
+              const config = this.boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
+              let newScale = this.pinchValue * event.scale;
+              this.scaleValue = Math.max(config.min, Math.min(config.max, newScale));
+            }
+          })
+          .onActionEnd(() => { this.pinchValue = this.scaleValue; })
+      )
+    )
+    .layoutWeight(1)
+    .margin({ bottom: this.isMaximized ? 0 : 10 })
+  }
+
+===============================================================================
+第16页
+===============================================================================
+文件路径：entry/src/main/ets/model/GameLogic.ets
+文件说明：五子棋游戏逻辑模块，包含胜负判定、规则检查等核心算法
+-------------------------------------------------------------------------------
+
+/**
+ * 五子棋游戏逻辑模块
+ * 包含胜负判定、规则检查等核心算法
+ * 所有算法以最后落子点为中心，复杂度接近 O(1)
+ */
+
+import { PieceType, GameStatus, Position, DIRECTIONS, GameConfig, DEFAULT_CONFIG } from './GameTypes';
+
+/**
+ * 游戏逻辑类
+ * 负责规则验证和胜负判定
+ */
+export class GameLogic {
+  private config: GameConfig;
+
+  constructor(config: GameConfig = DEFAULT_CONFIG) {
+    this.config = config;
+  }
+
+  /**
+   * 检查位置是否在棋盘范围内
+   */
+  isValidPosition(row: number, col: number): boolean {
+    return row >= 0 && row < this.config.boardSize &&
+           col >= 0 && col < this.config.boardSize;
+  }
+
+  /**
+   * 检查指定位置是否可以落子
+   * @param board 当前棋盘状态
+   * @param row 行索引
+   * @param col 列索引
+   */
+  canPlacePiece(board: PieceType[][], row: number, col: number): boolean {
+    if (!this.isValidPosition(row, col)) {
+      return false;
+    }
+    return board[row][col] === PieceType.EMPTY;
+  }
+
+===============================================================================
+第17页
+===============================================================================
+
+  /**
+   * 在指定方向上计算连续同色棋子数量
+   * @param board 棋盘状态
+   * @param row 起始行
+   * @param col 起始列
+   * @param piece 棋子类型
+   * @param direction 方向向量
+   * @returns 该方向上连续同色棋子数量（不含起点）
+   */
+  private countInDirection(
+    board: PieceType[][],
+    row: number,
+    col: number,
+    piece: PieceType,
+    direction: Position
+  ): number {
+    let count = 0;
+    let currentRow = row + direction.row;
+    let currentCol = col + direction.col;
+
+    while (this.isValidPosition(currentRow, currentCol) &&
+           board[currentRow][currentCol] === piece) {
+      count++;
+      currentRow += direction.row;
+      currentCol += direction.col;
+    }
+
+    return count;
+  }
+
+  /**
+   * 检查指定位置是否形成获胜连线
+   * 以最后落子点为中心，向4个方向双向扩展
+   * 复杂度: O(4 * winCondition) ≈ O(1)
+   *
+   * @param board 棋盘状态
+   * @param row 最后落子行
+   * @param col 最后落子列
+   * @returns 是否获胜
+   */
+  checkWin(board: PieceType[][], row: number, col: number): boolean {
+    const piece = board[row][col];
+    if (piece === PieceType.EMPTY) {
+      return false;
+    }
+
+    // 检查4个方向
+    for (const direction of DIRECTIONS) {
+      // 正向计数
+      const positiveCount = this.countInDirection(board, row, col, piece, direction);
+      // 反向计数（方向取反）
+      const negativeDirection: Position = {
+        row: -direction.row,
+        col: -direction.col
+      };
+
+===============================================================================
+第18页
+===============================================================================
+
+      const negativeCount = this.countInDirection(board, row, col, piece, negativeDirection);
+
+      // 总数 = 正向 + 反向 + 自身(1)
+      const total = positiveCount + negativeCount + 1;
+      if (total >= this.config.winCondition) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 检查棋盘是否已满（平局条件）
+   */
+  isBoardFull(board: PieceType[][]): boolean {
+    for (let row = 0; row < this.config.boardSize; row++) {
+      for (let col = 0; col < this.config.boardSize; col++) {
+        if (board[row][col] === PieceType.EMPTY) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 根据落子后的状态判断游戏结果
+   * @param board 棋盘状态
+   * @param lastRow 最后落子行
+   * @param lastCol 最后落子列
+   * @param currentPiece 当前落子的棋子类型
+   */
+  determineGameStatus(
+    board: PieceType[][],
+    lastRow: number,
+    lastCol: number,
+    currentPiece: PieceType
+  ): GameStatus {
+    // 检查是否获胜
+    if (this.checkWin(board, lastRow, lastCol)) {
+      return currentPiece === PieceType.BLACK ? GameStatus.BLACK_WIN : GameStatus.WHITE_WIN;
+    }
+
+    // 检查是否平局
+    if (this.isBoardFull(board)) {
+      return GameStatus.DRAW;
+    }
+
+    // 游戏继续
+    return GameStatus.PLAYING;
+  }
+
+===============================================================================
+第19页
+===============================================================================
+
+  /**
+   * 获取对手棋子类型
+   */
+  getOpponent(piece: PieceType): PieceType {
+    return piece === PieceType.BLACK ? PieceType.WHITE : PieceType.BLACK;
+  }
+
+  /**
+   * 获取配置
+   */
+  getConfig(): GameConfig {
+    return this.config;
+  }
+}
+
+===============================================================================
+第20页
+===============================================================================
+文件路径：entry/src/main/ets/model/GameState.ets
+文件说明：五子棋游戏状态管理模块，管理棋盘状态、落子记录、悔棋等功能
+-------------------------------------------------------------------------------
+
+/**
+ * 五子棋游戏状态管理模块
+ * 管理棋盘状态、落子记录、悔棋等功能
+ */
+
+import { PieceType, GameStatus, MoveRecord, GameConfig, DEFAULT_CONFIG } from './GameTypes';
+import { GameLogic } from './GameLogic';
+
+/**
+ * 游戏状态管理类
+ * 负责维护游戏状态、处理落子、悔棋等操作
+ */
+export class GameState {
+  private board: PieceType[][];
+  private currentPlayer: PieceType;
+  private gameStatus: GameStatus;
+  private moveHistory: MoveRecord[];
+  private undoCount: number;
+  private logic: GameLogic;
+  private config: GameConfig;
+
+  constructor(config: GameConfig = DEFAULT_CONFIG) {
+    this.config = config;
+    this.logic = new GameLogic(config);
+    this.board = [];
+    this.moveHistory = [];
+    this.currentPlayer = PieceType.BLACK;
+    this.gameStatus = GameStatus.PLAYING;
+    this.undoCount = 0;
+    this.initBoard();
+  }
+
+  /**
+   * 初始化棋盘
+   */
+  private initBoard(): void {
+    this.board = [];
+    for (let i = 0; i < this.config.boardSize; i++) {
+      const row: PieceType[] = [];
+      for (let j = 0; j < this.config.boardSize; j++) {
+        row.push(PieceType.EMPTY);
+      }
+      this.board.push(row);
+    }
+  }
+
+===============================================================================
+第21页
+===============================================================================
+
+  /**
+   * 重置游戏
+   */
+  reset(): void {
+    this.initBoard();
+    this.moveHistory = [];
+    this.currentPlayer = PieceType.BLACK;
+    this.gameStatus = GameStatus.PLAYING;
+    this.undoCount = 0;
+  }
+
+  /**
+   * 落子操作
+   * @param row 行索引
+   * @param col 列索引
+   * @returns 是否成功落子
+   */
+  placePiece(row: number, col: number): boolean {
+    // 游戏已结束，不能落子
+    if (this.gameStatus !== GameStatus.PLAYING) {
+      return false;
+    }
+
+    // 检查是否可以落子
+    if (!this.logic.canPlacePiece(this.board, row, col)) {
+      return false;
+    }
+
+    // 落子
+    this.board[row][col] = this.currentPlayer;
+
+    // 记录落子历史
+    const record: MoveRecord = {
+      row: row,
+      col: col,
+      piece: this.currentPlayer,
+      timestamp: Date.now()
+    };
+    this.moveHistory.push(record);
+
+    // 判断游戏状态
+    this.gameStatus = this.logic.determineGameStatus(
+      this.board, row, col, this.currentPlayer
+    );
+
+    // 切换玩家
+    if (this.gameStatus === GameStatus.PLAYING) {
+      this.currentPlayer = this.logic.getOpponent(this.currentPlayer);
+    }
+
+    return true;
+  }
+
+===============================================================================
+第22页
+===============================================================================
+
+  /**
+   * 悔棋操作
+   * @returns 是否成功悔棋
+   */
+  undo(): boolean {
+    // 检查悔棋次数限制
+    if (this.config.undoLimit >= 0 && this.undoCount >= this.config.undoLimit) {
+      return false;
+    }
+
+    // 检查是否有历史记录
+    if (this.moveHistory.length === 0) {
+      return false;
+    }
+
+    // 撤销最后一步
+    const lastMove = this.moveHistory.pop();
+    if (lastMove) {
+      this.board[lastMove.row][lastMove.col] = PieceType.EMPTY;
+      this.currentPlayer = lastMove.piece;
+      this.gameStatus = GameStatus.PLAYING;
+      this.undoCount++;
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 获取棋盘状态
+   */
+  getBoard(): PieceType[][] {
+    return this.board;
+  }
+
+  /**
+   * 获取指定位置的棋子
+   */
+  getPiece(row: number, col: number): PieceType {
+    if (this.logic.isValidPosition(row, col)) {
+      return this.board[row][col];
+    }
+    return PieceType.EMPTY;
+  }
+
+  /**
+   * 获取当前玩家
+   */
+  getCurrentPlayer(): PieceType {
+    return this.currentPlayer;
+  }
+
+===============================================================================
+第23页
+===============================================================================
+
+  /**
+   * 获取游戏状态
+   */
+  getGameStatus(): GameStatus {
+    return this.gameStatus;
+  }
+
+  /**
+   * 获取落子历史
+   */
+  getMoveHistory(): MoveRecord[] {
+    return this.moveHistory;
+  }
+
+  /**
+   * 获取最后一步落子
+   */
+  getLastMove(): MoveRecord | null {
+    if (this.moveHistory.length > 0) {
+      return this.moveHistory[this.moveHistory.length - 1];
+    }
+    return null;
+  }
+
+  /**
+   * 获取剩余悔棋次数
+   */
+  getRemainingUndos(): number {
+    if (this.config.undoLimit < 0) {
+      return -1; // 无限制
+    }
+    return Math.max(0, this.config.undoLimit - this.undoCount);
+  }
+
+  /**
+   * 获取配置
+   */
+  getConfig(): GameConfig {
+    return this.config;
+  }
+
+  /**
+   * 获取棋盘大小
+   */
+  getBoardSize(): number {
+    return this.config.boardSize;
+  }
+
+  /**
+   * 检查游戏是否结束
+   */
+  isGameOver(): boolean {
+    return this.gameStatus !== GameStatus.PLAYING;
+  }
+
+===============================================================================
+第24页
+===============================================================================
+
+  /**
+   * 获取总步数
+   */
+  getTotalMoves(): number {
+    return this.moveHistory.length;
+  }
+}
+
+===============================================================================
+第25页
+===============================================================================
+文件路径：entry/src/main/ets/model/GameTypes.ets
+文件说明：五子棋游戏类型定义模块，定义棋子类型、游戏状态、落子记录等核心数据结构
+-------------------------------------------------------------------------------
+
+/**
+ * 五子棋游戏类型定义模块
+ * 定义棋子类型、游戏状态、落子记录等核心数据结构
+ */
+
+/**
+ * 棋子类型枚举
+ */
+export enum PieceType {
+  EMPTY = 0,   // 空位
+  BLACK = 1,   // 黑子
+  WHITE = 2    // 白子
+}
+
+/**
+ * 游戏状态枚举
+ */
+export enum GameStatus {
+  PLAYING = 0,     // 游戏进行中
+  BLACK_WIN = 1,   // 黑方获胜
+  WHITE_WIN = 2,   // 白方获胜
+  DRAW = 3         // 平局
+}
+
+/**
+ * 落子记录接口
+ */
+export interface MoveRecord {
+  row: number;          // 行索引 (0-based)
+  col: number;          // 列索引 (0-based)
+  piece: PieceType;     // 棋子类型
+  timestamp: number;    // 时间戳
+}
+
+/**
+ * 游戏配置接口
+ */
+export interface GameConfig {
+  boardSize: number;      // 棋盘尺寸 (默认15)
+  winCondition: number;   // 胜利条件 - 连子数量 (默认5)
+  undoLimit: number;      // 悔棋次数限制 (-1表示无限制)
+}
+
+===============================================================================
+第26页
+===============================================================================
+
+/**
+ * 棋盘位置接口
+ */
+export interface Position {
+  row: number;
+  col: number;
+}
+
+/**
+ * 方向向量 - 用于胜负判定
+ * 4个方向：水平、垂直、左上-右下对角线、右上-左下对角线
+ */
+export const DIRECTIONS: Position[] = [
+  { row: 0, col: 1 },   // 水平
+  { row: 1, col: 0 },   // 垂直
+  { row: 1, col: 1 },   // 左上-右下对角线
+  { row: 1, col: -1 }   // 右上-左下对角线
+];
+
+/**
+ * 默认游戏配置 - 15x15标准棋盘
+ */
+export const DEFAULT_CONFIG: GameConfig = {
+  boardSize: 15,
+  winCondition: 5,
+  undoLimit: -1
+};
+
+/**
+ * 30x30大棋盘配置
+ */
+export const CONFIG_30X30: GameConfig = {
+  boardSize: 30,
+  winCondition: 5,
+  undoLimit: -1
+};
+
+/**
+ * 棋盘尺寸选项
+ */
+export const BOARD_SIZE_OPTIONS: number[] = [15, 30];
+
+===============================================================================
+第27页
+===============================================================================
+文件路径：entry/src/main/ets/model/GameConstants.ets
+文件说明：游戏常量配置，包含版本信息、星位配置、缩放参数等常量
+-------------------------------------------------------------------------------
+
+/**
+ * 游戏常量配置
+ * 包含版本信息、星位配置、缩放参数等常量
+ */
+
+/**
+ * 应用版本信息接口
+ */
+interface AppInfoType {
+  version: string;
+  author: string;
+  email: string;
+  buildDate: string;
+}
+
+/**
+ * 棋盘尺寸配置接口
+ */
+interface BoardSizeConfig {
+  cellSize: number;
+  pieceSize: number;
+}
+
+/**
+ * 30路棋盘配置接口
+ */
+interface Board30Config {
+  baseCellSize: number;
+  basePieceSize: number;
+}
+
+/**
+ * 棋盘布局配置接口
+ */
+interface BoardLayoutType {
+  padding: number;
+  board15: BoardSizeConfig;
+  board30: Board30Config;
+}
+
+/**
+ * 缩放配置项接口
+ */
+interface ScaleConfigItem {
+  min: number;
+  max: number;
+  defaultValue: number;
+}
+
+===============================================================================
+第28页
+===============================================================================
+
+/**
+ * 缩放配置接口
+ */
+interface ScaleConfigType {
+  scale15: ScaleConfigItem;
+  scale30: ScaleConfigItem;
+}
+
+/**
+ * 应用版本信息
+ */
+export const APP_INFO: AppInfoType = {
+  version: '1.0.0',
+  author: '陈云亮',
+  email: '676814828@qq.com',
+  buildDate: '2025.12'
+};
+
+/**
+ * 棋盘布局配置
+ */
+export const BOARD_LAYOUT: BoardLayoutType = {
+  padding: 15,
+  board15: {
+    cellSize: 22,
+    pieceSize: 20
+  },
+  board30: {
+    baseCellSize: 12,
+    basePieceSize: 10
+  }
+};
+
+/**
+ * 缩放配置
+ */
+export const SCALE_CONFIG: ScaleConfigType = {
+  scale15: {
+    min: 1.0,
+    max: 2.0,
+    defaultValue: 2.0
+  },
+  scale30: {
+    min: 1.0,
+    max: 4.0,
+    defaultValue: 4.0
+  }
+};
+
+/**
+ * 15路棋盘星位坐标
+ */
+export const STAR_POINTS_15: number[][] = [
+  [3, 3], [3, 7], [3, 11],
+  [7, 3], [7, 7], [7, 11],
+  [11, 3], [11, 7], [11, 11]
+];
+
+===============================================================================
+第29页
+===============================================================================
+
+/**
+ * 30路棋盘星位坐标
+ */
+export const STAR_POINTS_30: number[][] = [
+  [3, 3], [3, 15], [3, 26],
+  [15, 3], [15, 15], [15, 26],
+  [26, 3], [26, 15], [26, 26]
+];
+
+/**
+ * 判断指定位置是否为星位
+ */
+export function isStarPoint(row: number, col: number, boardSize: number): boolean {
+  const starPoints = boardSize === 30 ? STAR_POINTS_30 : STAR_POINTS_15;
+  for (let i = 0; i < starPoints.length; i++) {
+    if (starPoints[i][0] === row && starPoints[i][1] === col) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 获取棋盘的缩放配置
+ */
+export function getScaleConfig(boardSize: number): ScaleConfigItem {
+  return boardSize === 30 ? SCALE_CONFIG.scale30 : SCALE_CONFIG.scale15;
+}
+
+/**
+ * 获取索引数组
+ */
+export function getIndices(size: number): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < size; i++) {
+    indices.push(i);
+  }
+  return indices;
+}
+
+===============================================================================
+第30页
+===============================================================================
+文件路径：entry/src/main/ets/components/BoardCell.ets
+文件说明：棋盘单元格组件，负责渲染单个格子的网格线、星位和棋子
+-------------------------------------------------------------------------------
+
+/**
+ * 棋盘单元格组件
+ * 负责渲染单个格子的网格线、星位和棋子
+ */
+
+import { PieceType } from '../model/GameTypes';
+import { isStarPoint } from '../model/GameConstants';
+
+/**
+ * 棋盘单元格属性
+ */
+interface BoardCellProps {
+  row: number;
+  col: number;
+  boardSize: number;
+  cellSize: number;
+  pieceSize: number;
+  pieceType: PieceType;
+  isLastMove: boolean;
+  onCellClick: (row: number, col: number) => void;
+}
+
+/**
+ * 棋盘单元格组件
+ */
+@Component
+export struct BoardCell {
+  @Prop row: number = 0;
+  @Prop col: number = 0;
+  @Prop boardSize: number = 15;
+  @Prop cellSize: number = 22;
+  @Prop pieceSize: number = 20;
+  @Prop pieceType: PieceType = PieceType.EMPTY;
+  @Prop isLastMove: boolean = false;
+  onCellClick: (row: number, col: number) => void = () => {};
+
+  build() {
+    Stack() {
+      // 绘制网格线
+      Canvas(new CanvasRenderingContext2D(new RenderingContextSettings(true)))
+        .width(this.cellSize)
+        .height(this.cellSize)
+        .onReady(() => { })
+
+      // 网格线背景 - 水平线
+      Column() {
+        if (this.row > 0 || this.row < this.boardSize - 1) {
+          Line()
+            .width(this.col === 0 ? this.cellSize / 2 : (this.col === this.boardSize - 1 ? this.cellSize / 2 : this.cellSize))
+
+===============================================================================
+                            源代码前30页结束
+===============================================================================

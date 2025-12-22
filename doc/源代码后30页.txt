@@ -1,0 +1,898 @@
+===============================================================================
+                    五子棋游戏软件源代码（后30页）
+===============================================================================
+软件名称：FiveInRow互动五子棋
+版本号：v1.0.0
+开发者：陈云亮
+邮箱：676814828@qq.com
+开发日期：2025年12月
+===============================================================================
+
+本文档包含软件源代码的后30页内容，从第774页开始展示。
+
+===============================================================================
+第774页
+===============================================================================
+文件路径：entry/src/main/ets/pages/Index.ets（续）
+文件说明：棋盘单元格渲染部分
+-------------------------------------------------------------------------------
+
+      // 垂直线
+      Column() {
+        Line()
+          .width(1)
+          .height(row === 0 ? this.cellSize / 2 : (row === this.boardSize - 1 ? this.cellSize / 2 : this.cellSize))
+          .backgroundColor($r('app.color.board_line'))
+          .position({
+            x: this.cellSize / 2,
+            y: row === 0 ? this.cellSize / 2 : 0
+          })
+      }
+      .width(this.cellSize)
+      .height(this.cellSize)
+
+      // 星位
+      if (isStarPoint(row, col, this.boardSize)) {
+        Circle({ width: this.boardSize === 30 ? 4 : 6, height: this.boardSize === 30 ? 4 : 6 })
+          .fill($r('app.color.star_point'))
+      }
+
+      // 棋子
+      if (this.boardData.length > row && this.boardData[row].length > col) {
+        if (this.boardData[row][col] !== PieceType.EMPTY) {
+          Circle({ width: this.pieceSize, height: this.pieceSize })
+            .fill(this.boardData[row][col] === PieceType.BLACK ?
+              $r('app.color.black_piece') : $r('app.color.white_piece'))
+            .stroke(this.boardData[row][col] === PieceType.BLACK ? '#333333' : 'transparent')
+            .strokeWidth(this.boardData[row][col] === PieceType.BLACK ? 1 : 0)
+
+          if (row === this.lastMoveRow && col === this.lastMoveCol) {
+            Circle({ width: this.boardSize === 30 ? 4 : 6, height: this.boardSize === 30 ? 4 : 6 })
+              .fill($r('app.color.last_move_marker'))
+          }
+        }
+      }
+    }
+    .width(this.cellSize)
+    .height(this.cellSize)
+    .onClick(() => { this.handleCellClick(row, col); })
+  }
+}
+
+===============================================================================
+第775页
+===============================================================================
+文件路径：entry/src/main/ets/model/AudioManager.ets
+文件说明：音频管理器，使用 media.createSoundPool 播放短音效
+-------------------------------------------------------------------------------
+
+/**
+ * 音频管理器
+ * 使用 media.createSoundPool 播放短音效
+ */
+
+import { media } from '@kit.MediaKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { PieceType } from './GameTypes';
+import { BusinessError } from '@kit.BasicServicesKit';
+
+/**
+ * 音频管理器类
+ */
+export class AudioManager {
+  private static instance: AudioManager | null = null;
+  private soundPool: media.SoundPool | null = null;
+  private blackSoundId: number = -1;
+  private whiteSoundId: number = -1;
+  private soundEnabled: boolean = true;
+  private initialized: boolean = false;
+  private context: Context | null = null;
+
+  private constructor() {}
+
+  public static getInstance(): AudioManager {
+    if (!AudioManager.instance) {
+      AudioManager.instance = new AudioManager();
+    }
+    return AudioManager.instance;
+  }
+
+  public setContext(context: Context): void {
+    this.context = context;
+  }
+
+  public async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      hilog.info(0x0000, 'AudioManager', 'Starting initialization...');
+      
+      // 创建 SoundPool
+      this.soundPool = await media.createSoundPool(2, {
+        usage: 1, // STREAM_USAGE_MEDIA
+        rendererFlags: 0
+      });
+
+===============================================================================
+第776页
+===============================================================================
+      
+      hilog.info(0x0000, 'AudioManager', 'SoundPool created');
+
+      // 加载音效文件
+      if (this.context) {
+        const blackFd = await this.context.resourceManager.getRawFd('black_piece.mp3');
+        this.blackSoundId = await this.soundPool.load(blackFd.fd, blackFd.offset, blackFd.length);
+        hilog.info(0x0000, 'AudioManager', `Black sound loaded, id: ${this.blackSoundId}`);
+
+        const whiteFd = await this.context.resourceManager.getRawFd('white_piece.mp3');
+        this.whiteSoundId = await this.soundPool.load(whiteFd.fd, whiteFd.offset, whiteFd.length);
+        hilog.info(0x0000, 'AudioManager', `White sound loaded, id: ${this.whiteSoundId}`);
+      } else {
+        hilog.error(0x0000, 'AudioManager', 'Context is null, cannot load sounds');
+      }
+
+      this.initialized = true;
+      hilog.info(0x0000, 'AudioManager', 'Initialization complete');
+    } catch (error) {
+      const err = error as BusinessError;
+      hilog.error(0x0000, 'AudioManager', `Failed to initialize: ${err.code} - ${err.message}`);
+    }
+  }
+
+  public playPieceSound(pieceType: PieceType): void {
+    if (!this.soundEnabled || !this.soundPool) {
+      hilog.info(0x0000, 'AudioManager', `Skip playing: enabled=${this.soundEnabled}, pool=${this.soundPool !== null}`);
+      return;
+    }
+
+    try {
+      const soundId = pieceType === PieceType.BLACK ? this.blackSoundId : this.whiteSoundId;
+      if (soundId >= 0) {
+        this.soundPool.play(soundId, {
+          loop: 0,
+          rate: 1.0,
+          leftVolume: 1.0,
+          rightVolume: 1.0,
+          priority: 0
+        });
+        hilog.info(0x0000, 'AudioManager', `Playing sound id: ${soundId}`);
+      } else {
+        hilog.warn(0x0000, 'AudioManager', `Sound not loaded: ${soundId}`);
+      }
+    } catch (error) {
+      const err = error as BusinessError;
+      hilog.error(0x0000, 'AudioManager', `Failed to play: ${err.code} - ${err.message}`);
+    }
+  }
+
+===============================================================================
+第777页
+===============================================================================
+
+  public setSoundEnabled(enabled: boolean): void {
+    this.soundEnabled = enabled;
+    hilog.info(0x0000, 'AudioManager', `Sound enabled: ${enabled}`);
+  }
+
+  public isSoundEnabled(): boolean {
+    return this.soundEnabled;
+  }
+
+  public release(): void {
+    try {
+      if (this.soundPool) {
+        this.soundPool.release();
+        this.soundPool = null;
+      }
+      this.initialized = false;
+      this.blackSoundId = -1;
+      this.whiteSoundId = -1;
+      hilog.info(0x0000, 'AudioManager', 'Released');
+    } catch (error) {
+      hilog.error(0x0000, 'AudioManager', `Failed to release: ${error}`);
+    }
+  }
+}
+
+===============================================================================
+第778页
+===============================================================================
+文件路径：entry/src/main/ets/entryability/EntryAbility.ets
+文件说明：应用入口能力，管理应用生命周期
+-------------------------------------------------------------------------------
+
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { window } from '@kit.ArkUI';
+
+const DOMAIN = 0x0000;
+
+export default class EntryAbility extends UIAbility {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    try {
+      this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
+    }
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+  }
+
+  onDestroy(): void {
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+  }
+
+  onWindowStageCreate(windowStage: window.WindowStage): void {
+    // Main window is created, set main page for this ability
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+
+    windowStage.loadContent('pages/Index', (err) => {
+      if (err.code) {
+        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        return;
+      }
+      hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+    });
+  }
+
+  onWindowStageDestroy(): void {
+    // Main window is destroyed, release UI related resources
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
+  }
+
+===============================================================================
+第779页
+===============================================================================
+
+  onForeground(): void {
+    // Ability has brought to foreground
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+  }
+
+  onBackground(): void {
+    // Ability has back to background
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+  }
+}
+
+===============================================================================
+第780页
+===============================================================================
+文件路径：entry/src/main/ets/entrybackupability/EntryBackupAbility.ets
+文件说明：备份恢复能力
+-------------------------------------------------------------------------------
+
+import { BackupExtensionAbility, BundleVersion } from '@kit.CoreFileKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const TAG: string = 'EntryBackupAbility';
+
+export default class EntryBackupAbility extends BackupExtensionAbility {
+  async onBackup() {
+    hilog.info(0x0000, TAG, 'onBackup ok');
+  }
+
+  async onRestore(bundleVersion: BundleVersion) {
+    hilog.info(0x0000, TAG, 'onRestore ok %{public}s', JSON.stringify(bundleVersion));
+  }
+}
+
+===============================================================================
+第781页
+===============================================================================
+文件路径：entry/src/main/resources/base/element/color.json
+文件说明：颜色资源配置文件
+-------------------------------------------------------------------------------
+
+{
+  "color": [
+    {
+      "name": "page_background",
+      "value": "#F5F5F5"
+    },
+    {
+      "name": "board_background",
+      "value": "#DEB887"
+    },
+    {
+      "name": "board_line",
+      "value": "#000000"
+    },
+    {
+      "name": "star_point",
+      "value": "#000000"
+    },
+    {
+      "name": "black_piece",
+      "value": "#000000"
+    },
+    {
+      "name": "white_piece",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "last_move_marker",
+      "value": "#FF0000"
+    },
+
+===============================================================================
+第782页
+===============================================================================
+
+    {
+      "name": "primary_text",
+      "value": "#333333"
+    },
+    {
+      "name": "secondary_text",
+      "value": "#666666"
+    },
+    {
+      "name": "button_primary",
+      "value": "#4CAF50"
+    },
+    {
+      "name": "button_secondary",
+      "value": "#FF9800"
+    },
+    {
+      "name": "button_text",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "win_color",
+      "value": "#E91E63"
+    },
+    {
+      "name": "black_turn_indicator",
+      "value": "#000000"
+    },
+    {
+      "name": "white_turn_indicator",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    }
+  ]
+}
+
+===============================================================================
+第783页
+===============================================================================
+文件路径：entry/src/main/resources/base/element/string.json
+文件说明：字符串资源配置文件
+-------------------------------------------------------------------------------
+
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "五子棋游戏模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "五子棋游戏应用入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "五子棋"
+    }
+  ]
+}
+
+===============================================================================
+第784页
+===============================================================================
+文件路径：entry/src/main/resources/base/element/float.json
+文件说明：浮点数资源配置文件
+-------------------------------------------------------------------------------
+
+{
+  "float": [
+    {
+      "name": "cell_size_15",
+      "value": "22vp"
+    },
+    {
+      "name": "piece_size_15",
+      "value": "20vp"
+    },
+    {
+      "name": "cell_size_30",
+      "value": "12vp"
+    },
+    {
+      "name": "piece_size_30",
+      "value": "10vp"
+    }
+  ]
+}
+
+===============================================================================
+第785页
+===============================================================================
+文件路径：entry/src/main/resources/base/profile/main_pages.json
+文件说明：主页面路由配置
+-------------------------------------------------------------------------------
+
+{
+  "src": [
+    "pages/Index"
+  ]
+}
+
+===============================================================================
+第786页
+===============================================================================
+文件路径：entry/src/main/resources/base/profile/backup_config.json
+文件说明：备份配置文件
+-------------------------------------------------------------------------------
+
+{
+  "allowToBackupRestore": true,
+  "includes": [],
+  "excludes": [],
+  "fullBackupOnly": false,
+  "restoreDeps": ""
+}
+
+===============================================================================
+第787页
+===============================================================================
+文件路径：entry/src/main/module.json5
+文件说明：模块配置文件
+-------------------------------------------------------------------------------
+
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "EntryAbility",
+    "deviceTypes": [
+      "phone"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:layered_image",
+        "label": "$string:EntryAbility_label",
+        "startWindowIcon": "$media:icon_startwindow",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        "skills": [
+          {
+            "entities": [
+              "entity.system.home"
+            ],
+            "actions": [
+              "ohos.want.action.home"
+            ]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      {
+        "name": "EntryBackupAbility",
+        "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",
+        "type": "backup",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.backup",
+            "resource": "$profile:backup_config"
+          }
+        ],
+      }
+    ]
+  }
+}
+
+===============================================================================
+第788页
+===============================================================================
+文件路径：entry/build-profile.json5
+文件说明：构建配置文件
+-------------------------------------------------------------------------------
+
+{
+  "apiType": "stageMode",
+  "buildOption": {
+  },
+  "buildOptionSet": [
+    {
+      "name": "release",
+      "arkOptions": {
+        "obfuscation": {
+          "ruleOptions": {
+            "enable": true,
+            "files": [
+              "./obfuscation-rules.txt"
+            ]
+          },
+          "consumerFiles": [
+            "./consumer-rules.txt"
+          ]
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "name": "default"
+    }
+  ]
+}
+
+===============================================================================
+第789页
+===============================================================================
+文件路径：entry/hvigorfile.ts
+文件说明：Hvigor构建脚本
+-------------------------------------------------------------------------------
+
+import { hspTasks } from '@ohos/hvigor-ohos-plugin';
+
+export default {
+  system: hspTasks,  /* Built-in plugin of Hvigor. It cannot be modified. */
+  plugins:[]         /* Custom plugin to extend the functionality of Hvigor. */
+}
+
+===============================================================================
+第790页
+===============================================================================
+文件路径：entry/oh-package.json5
+文件说明：Entry模块依赖配置
+-------------------------------------------------------------------------------
+
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "五子棋游戏入口模块",
+  "main": "",
+  "author": "陈云亮",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}
+
+===============================================================================
+第791页
+===============================================================================
+文件路径：AppScope/app.json5
+文件说明：应用全局配置文件
+-------------------------------------------------------------------------------
+
+{
+  "app": {
+    "bundleName": "com.pangpang.fiveinrow",
+    "vendor": "陈云亮",
+    "versionCode": 1000000,
+    "versionName": "1.0.0",
+    "icon": "$media:layered_image",
+    "label": "$string:app_name"
+  }
+}
+
+===============================================================================
+第792页
+===============================================================================
+文件路径：AppScope/resources/base/element/string.json
+文件说明：应用级字符串资源
+-------------------------------------------------------------------------------
+
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "五子棋"
+    }
+  ]
+}
+
+===============================================================================
+第793页
+===============================================================================
+文件路径：build-profile.json5
+文件说明：项目级构建配置
+-------------------------------------------------------------------------------
+
+{
+  "app": {
+    "signingConfigs": [],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true
+          }
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry"
+    }
+  ]
+}
+
+===============================================================================
+第794页
+===============================================================================
+文件路径：hvigorfile.ts
+文件说明：项目级Hvigor构建脚本
+-------------------------------------------------------------------------------
+
+import { appTasks } from '@ohos/hvigor-ohos-plugin';
+
+export default {
+  system: appTasks,  /* Built-in plugin of Hvigor. It cannot be modified. */
+  plugins:[]         /* Custom plugin to extend the functionality of Hvigor. */
+}
+
+===============================================================================
+第795页
+===============================================================================
+文件路径：oh-package.json5
+文件说明：项目依赖配置
+-------------------------------------------------------------------------------
+
+{
+  "name": "fiveinrow",
+  "version": "1.0.0",
+  "description": "FiveInRow互动五子棋游戏",
+  "main": "",
+  "author": "陈云亮",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hvigor-ohos-plugin": "5.0.8",
+    "@ohos/hvigor": "5.0.8"
+  }
+}
+
+===============================================================================
+第796页
+===============================================================================
+文件路径：hvigor/hvigor-config.json5
+文件说明：Hvigor配置文件
+-------------------------------------------------------------------------------
+
+{
+  "hvigorVersion": "5.0.8",
+  "dependencies": {
+    "@ohos/hvigor-ohos-plugin": "5.0.8"
+  },
+  "execution": {
+    "daemon": true
+  },
+  "logging": {
+    "level": "info"
+  },
+  "debugging": {
+    "stacktrace": false
+  },
+  "nodeOptions": {
+    "maxOldSpaceSize": 8192
+  }
+}
+
+===============================================================================
+第797页
+===============================================================================
+文件路径：code-linter.json5
+文件说明：代码规范检查配置
+-------------------------------------------------------------------------------
+
+{
+  "files": [
+    "**/*.ets"
+  ],
+  "ignore": [
+    "build/**/*",
+    "node_modules/**/*"
+  ],
+  "ruleSet": "ets",
+  "rules": {}
+}
+
+===============================================================================
+第798页
+===============================================================================
+文件路径：.gitignore
+文件说明：Git忽略文件配置
+-------------------------------------------------------------------------------
+
+node_modules
+oh_modules
+.idea
+build
+*.iml
+**/.test
+**/.preview
+
+===============================================================================
+第799页
+===============================================================================
+文件路径：entry/.gitignore
+文件说明：Entry模块Git忽略文件配置
+-------------------------------------------------------------------------------
+
+/node_modules
+/oh_modules
+/.preview
+/build
+/.cxx
+
+===============================================================================
+第800页
+===============================================================================
+文件路径：README.md
+文件说明：项目说明文档
+-------------------------------------------------------------------------------
+
+# FiveInRow互动五子棋
+
+## 项目简介
+
+FiveInRow互动五子棋是一款基于HarmonyOS平台开发的双人对弈棋类游戏。采用ArkTS语言开发，提供15×15和30×30两种棋盘尺寸，支持悔棋、重新开始、音效控制、棋盘缩放等功能。
+
+## 主要功能
+
+- ✅ 15×15 标准棋盘
+- ✅ 30×30 大棋盘
+- ✅ 完整的五子棋规则实现
+- ✅ 悔棋功能（无限次）
+- ✅ 重新开始
+- ✅ 音效系统（黑白棋子不同音效）
+- ✅ 最大化模式
+- ✅ 双指缩放（1.0-4.0倍）
+- ✅ 三指拖动
+- ✅ 华丽的获胜庆祝动画
+- ✅ 声音开关控制
+- ✅ 星位标记显示
+- ✅ 最后落子位置标记
+
+===============================================================================
+第801页
+===============================================================================
+
+## 技术栈
+
+- **开发语言**：ArkTS
+- **开发框架**：HarmonyOS ArkUI
+- **音频处理**：media.createSoundPool
+- **日志系统**：hilog
+- **状态管理**：@State、@Observed
+
+## 项目结构
+
+```
+fiveinrow/
+├── AppScope/                    # 应用全局配置
+│   ├── resources/              # 全局资源
+│   └── app.json5               # 应用配置
+├── entry/                      # 主模块
+│   ├── src/
+│   │   └── main/
+│   │       ├── ets/            # TypeScript源码
+│   │       │   ├── components/ # UI组件
+│   │       │   ├── entryability/ # 入口能力
+│   │       │   ├── model/      # 数据模型
+│   │       │   └── pages/      # 页面
+│   │       └── resources/      # 资源文件
+│   └── build-profile.json5     # 构建配置
+└── build-profile.json5          # 项目构建配置
+```
+
+===============================================================================
+第802页
+===============================================================================
+
+## 核心模块说明
+
+### 1. GameTypes.ets
+定义游戏核心类型：
+- `PieceType`: 棋子类型（空、黑、白）
+- `GameStatus`: 游戏状态（进行中、黑胜、白胜、平局）
+- `MoveRecord`: 落子记录
+- `GameConfig`: 游戏配置
+
+### 2. GameLogic.ets
+实现游戏核心逻辑：
+- 胜负判定算法（O(1)复杂度）
+- 规则验证
+- 棋盘状态检查
+
+### 3. GameState.ets
+管理游戏状态：
+- 棋盘状态维护
+- 落子记录
+- 悔棋功能
+- 状态同步
+
+### 4. AudioManager.ets
+音频管理：
+- 音效加载
+- 音效播放
+- 音量控制
+
+===============================================================================
+第803页
+===============================================================================
+
+## 开发环境
+
+- **DevEco Studio**: 5.0.0 及以上
+- **SDK**: HarmonyOS 5.0.0(12) 及以上
+- **Node.js**: 建议 16.x 或更高版本
+
+## 构建运行
+
+1. 克隆项目到本地
+2. 使用 DevEco Studio 打开项目
+3. 连接HarmonyOS设备或启动模拟器
+4. 点击运行按钮
+
+## 版本信息
+
+- **当前版本**: v1.0.0
+- **发布日期**: 2025年12月
+
+## 作者信息
+
+- **开发者**: 陈云亮
+- **邮箱**: 676814828@qq.com
+
+## 许可证
+
+Apache License 2.0
+
+===============================================================================
+                            源代码后30页结束
+===============================================================================
+
+附：关键代码说明
+
+1. 胜负判定算法
+   - 采用中心扩散算法，以最后落子点为中心
+   - 向四个方向（横、竖、两对角线）双向检测
+   - 时间复杂度 O(4 * winCondition) ≈ O(1)
+
+2. 庆祝动画实现
+   - 使用定时器实现 25fps 粒子动画
+   - 50个粒子循环飘落
+   - 支持动态屏幕尺寸适配
+
+3. 缩放拖动手势
+   - GestureGroup 组合手势
+   - 双指缩放：PinchGesture
+   - 三指拖动：PanGesture(fingers: 3)
+   - Exclusive 模式避免手势冲突
+
+4. 音效系统
+   - 单例模式管理 SoundPool
+   - 预加载 mp3 音效文件
+   - 异步初始化避免阻塞 UI
+
+5. 状态同步机制
+   - @State 响应式状态
+   - syncState() 统一同步接口
+   - 游戏逻辑与UI分离
+
+===============================================================================
